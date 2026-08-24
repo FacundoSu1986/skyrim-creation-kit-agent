@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "skyrim-creation-kit-agent-discovery-desk",
   "private": true,
   "scripts": {
     "dev": "next dev",
