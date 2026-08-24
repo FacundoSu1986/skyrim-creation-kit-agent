@@ -25,7 +25,9 @@ Build a safety-first Skyrim SE/AE authoring agent without overstating runtime ev
 ## Required behavior
 
 - Work on a branch; never push experimental work directly to `main`.
-- Preserve evidence labels: `VERIFIED`, `NO_VERIFICADO`, `HIPOTESIS`, `EXPERIMENTAL`, `BLOQUEADO`, `DESCARTADO`, `LEGAL_REVIEW_REQUIRED`.
+- Preserve the canonical status identifiers EXACTLY: `VERIFICADO`, `PASS`, `NO VERIFICADO`, `HIPOTESIS`, `EXPERIMENTAL`, `BLOQUEADO`, `DESCARTADO`, `LEGAL_REVIEW_REQUIRED`.
+- Do not invent new evidence/status identifiers without an ADR or explicit migration.
+- Status and evidence are different dimensions: status `PASS` means an experiment's defined gate passed; evidence levels (`E_NONE`, `E0`–`E5`) record how much was independently verified. A `PASS` experiment is not automatically `E5`, and a rejected plan has no evidence at all (`E_NONE`), never `E0`.
 - Never claim in-game correctness from a parser or serializer round-trip.
 - Never add an arbitrary `EXECUTE_COMMAND`, shell, eval, or click primitive to a plan schema.
 - Use immutable originals and candidate-only writes.

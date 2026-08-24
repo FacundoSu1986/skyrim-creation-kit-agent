@@ -11,7 +11,7 @@ VIABLE WITH LIMITATIONS
 ## Implemented and validated
 
 - POC-002 synthetic TES4 inspection/safety pipeline.
-- 43/43 unit/security tests on the supplied implementation.
+- 44/44 unit/security tests on the supplied implementation (initial validated baseline: 43 tests; +1 adversarial regression for policy-rejection evidence semantics).
 - Candidate workspace/path containment.
 - Fail-closed receipts and immutable-original hash invariant.
 

@@ -36,7 +36,7 @@ body:
       label: Initial status
       options:
         - HIPOTESIS
-        - NO_VERIFICADO
+        - NO VERIFICADO
         - EXPERIMENTAL
         - BLOQUEADO
         - LEGAL_REVIEW_REQUIRED

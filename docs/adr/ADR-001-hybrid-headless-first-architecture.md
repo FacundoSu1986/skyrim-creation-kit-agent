@@ -111,6 +111,7 @@ Writes occur only to candidates. Originals are hashed before and after execution
 
 ## Evidence levels
 
+- **E_NONE** — no gate satisfied; the plan/schema/policy was rejected before E0
 - **E0** — plan/schema accepted
 - **E1** — worker completed with a receipt
 - **E2** — candidate reopened and assertions passed

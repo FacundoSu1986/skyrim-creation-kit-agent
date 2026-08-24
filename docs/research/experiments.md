@@ -45,7 +45,7 @@ Do not invent command-line switches in product code. Verify behavior on a legal 
 
 ## EXP-ESPER-LICENSE — confirm C# esper license
 
-**Status:** `NO_VERIFICADO` / `LEGAL_REVIEW_REQUIRED`
+**Status:** `NO VERIFICADO` + `LEGAL_REVIEW_REQUIRED`
 
 Read the canonical repository LICENSE directly and record the SPDX identifier before using esper as an architectural dependency.
 

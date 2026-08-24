@@ -9,9 +9,9 @@ Imported from the structured research archive and normalized to the current repo
 | Create miscellaneous item | MVP candidate | Not implemented here | Mutagen write or dedicated writer POC | Low | Smallest honest write POC |
 | Create actor base | V1 | Research — FaceGen gap | Mutagen write; CK for FaceGen | Medium | NPC record alone does not prove correct appearance |
 | Create quest / stages | Not MVP | Experimental elsewhere | Mutagen / esper | High | Data-layer feasibility ≠ semantic correctness |
-| Compile Papyrus | V1 | `NO_VERIFICADO` here | Official PapyrusCompiler.exe | Low | Explicit args, timeout, reject stale PEX |
+| Compile Papyrus | V1 | `NO VERIFICADO` here | Official PapyrusCompiler.exe | Low | Explicit args, timeout, reject stale PEX |
 | Static plugin validation | MVP | Research — backend exists | xEdit / analyzers | Low | Static pass ≠ in-game behavior |
-| CK window inspect | Milestone 1 | `NO_VERIFICADO` | UIA / Inspect.exe | Medium | POC-001, read-only |
+| CK window inspect | Milestone 1 | `NO VERIFICADO` | UIA / Inspect.exe | Medium | POC-001, read-only |
 | CK UI write | Fallback only | Unsupported until POC-001 | UIA | High | Coordinate clicks forbidden |
 | CKPE in-process bridge | Long-term research | `LEGAL_REVIEW_REQUIRED` | CKPE PluginAPI | Critical | Not MVP |
 | Render Window | Out of scope | Unsupported | CK GUI | Critical | No headless equivalent verified |

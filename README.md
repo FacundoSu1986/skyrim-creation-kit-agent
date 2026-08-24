@@ -15,15 +15,22 @@ The project converts high-level modding intent into typed, reversible, evidence-
 
 ## Status vocabulary
 
+Canonical status identifiers (do not invent new ones without an ADR or an explicit migration):
+
 | Status | Meaning |
 | --- | --- |
-| `VERIFIED` | Supported by direct evidence or a reproducible test |
-| `NO_VERIFICADO` | Plausible or documented elsewhere, but not reproduced here |
+| `VERIFICADO` | Supported by direct evidence or a reproducible test |
+| `PASS` | Experiment executed and its defined gate passed |
+| `NO VERIFICADO` | Plausible or documented elsewhere, but not reproduced here |
 | `HIPOTESIS` | Proposed experiment or design claim |
 | `EXPERIMENTAL` | Implemented only as an experiment |
 | `BLOQUEADO` | Cannot currently proceed in the available environment |
 | `DESCARTADO` | Explicitly rejected for the intended architecture |
 | `LEGAL_REVIEW_REQUIRED` | Technical path exists, but licensing/EULA implications are unresolved |
+
+Status and evidence are different dimensions: a status of `PASS` (experiment outcome)
+is not itself an evidence level (`E0`–`E5`). POC-002 is `PASS` with evidence
+`E2_REOPENED_ASSERTIONS_PASS`.
 
 ## Repository map
 
@@ -97,7 +104,8 @@ See [`docs/adr/ADR-001-hybrid-headless-first-architecture.md`](docs/adr/ADR-001-
 - fail-closed orchestration;
 - no-overwrite receipts;
 - SHA-256 invariant for the original;
-- **43 automated tests**.
+- **44 automated tests** (initial validated baseline: 43; +1 adversarial regression covering
+  policy-rejection evidence semantics).
 
 Run it:
 
@@ -110,7 +118,7 @@ python -m unittest test_suite.py -v
 Expected result:
 
 ```text
-Ran 43 tests
+Ran 44 tests
 OK
 ```
 
@@ -134,9 +142,9 @@ The research archive is under [`docs/research/`](docs/research/).
 | --- | --- | --- |
 | POC-001 | Read-only Creation Kit UIA/MSAA inspection on Windows | `BLOQUEADO` here; designed, not executed |
 | POC-002 | Synthetic TES4 header parse + safety pipeline | **PASS** |
-| POC-003 | PapyrusCompiler dry-invoke | `NO_VERIFICADO` / not started |
-| POC-004 | Allowlisted xEdit `-script -autoexit` validation | `NO_VERIFICADO` / not started |
-| EXP-CK-CLI | Verify actual Creation Kit command-line behavior | `NO_VERIFICADO` |
+| POC-003 | PapyrusCompiler dry-invoke | `NO VERIFICADO` / not started |
+| POC-004 | Allowlisted xEdit `-script -autoexit` validation | `NO VERIFICADO` / not started |
+| EXP-CK-CLI | Verify actual Creation Kit command-line behavior | `NO VERIFICADO` |
 | EXP-ESPER-LICENSE | Confirm C# esper licensing | `LEGAL_REVIEW_REQUIRED` |
 | EXP-CKPE-QIFACE | Inspect CKPE interfaces after legal clearance | `HIPOTESIS` |
 

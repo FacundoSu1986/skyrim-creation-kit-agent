@@ -20,4 +20,4 @@ The newer archive wins when the two disagree.
 
 `docs/research/architecture-options.md` contained a stale table value of `79` for Option D while the archive's structured canonical data (`src/lib/research/architecture.ts`) records `weightedScore: 82`. The Markdown copy in this repository is normalized to **82**.
 
-No claim that required running Creation Kit, xEdit, PapyrusCompiler, or Skyrim itself was upgraded to `VERIFIED` during this import.
+No claim that required running Creation Kit, xEdit, PapyrusCompiler, or Skyrim itself was upgraded to `VERIFICADO` during this import.
