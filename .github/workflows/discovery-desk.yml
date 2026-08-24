@@ -29,8 +29,12 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
+      - name: Verify integrity manifest
+        run: sha256sum -c MANIFEST.sha256
       - name: Install (npm ci)
         run: npm ci
+      - name: Security audit (high/critical)
+        run: npm audit --audit-level=high
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

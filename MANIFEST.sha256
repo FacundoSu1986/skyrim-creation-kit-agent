@@ -1,8 +1,8 @@
 e028774f299851e52f11b2c33e8e5130989ddfaff9e9bd593c3e41b2111d1eff  ./.github/CODEOWNERS
 89c95097d181d96668223e4cfc8ea666ad1130276d9dbc57ef63fc7663902217  ./.github/ISSUE_TEMPLATE/research.yml
-3cd02b859c863b7cd4485978e68e18cc9550e126cfcdbf8a230c2ea04b6b66bb  ./.github/dependabot.yml
+f6a01dcffd70c09dca98bed81d1163e8900045925db1dae6845432bad949e3d3  ./.github/dependabot.yml
 12da2d1b18521db24e8c82bdd72f2c305dec11a78942a0eec5b5aae0d3db0484  ./.github/pull_request_template.md
-49d307292ea4fc061c2cce5730cd45805559a637fad9ac8ad2af2b916bdfc435  ./.github/workflows/discovery-desk.yml
+afd135b7d0d6b8702791d6b542f56dae4bb7449dca20c3ec9d407b1c809e8c79  ./.github/workflows/discovery-desk.yml
 88e55beba135d2ecae2950857ee70ce25d583df5e974110b7dfc7166861d690e  ./.github/workflows/poc002.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 6d70d34c12959e2d9b0ad594e2f1213c9f543ab79fd5eb82b14a10bac6e3e877  ./AGENTS.md
