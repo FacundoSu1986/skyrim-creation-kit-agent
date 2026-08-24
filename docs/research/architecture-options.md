@@ -30,7 +30,7 @@ Reported score = weighted sum / 10, rounded.
 | A | Pure vision agent | 30 | `DESCARTADO` as spine |
 | B | UI Automation of CK | 47 | Fallback only after POC-001 |
 | C | CKPE in-process bridge | 39 | Research track; legally blocked for MVP |
-| D | Headless-first | **79** | Best isolated score; primary backend |
+| D | Headless-first | **82** | Best isolated score; primary backend |
 | E | Hybrid orchestrator | 74 | **Recommended product shape** |
 
 D wins the number. E is recommended because it **contains D** and can later name CK-exclusive work without lying that headless coverage is complete.
