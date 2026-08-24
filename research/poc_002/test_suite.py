@@ -420,9 +420,52 @@ class TestOrchestrationIntegrity(unittest.TestCase):
         empty_plan = ModPlan(plan_id="PLAN-EMPTY", description="Empty", operations=())
         # Act
         summary = self.orchestrator.execute_plan(empty_plan, self.plugin_name)
-        # Assert: No puede ser PASS ni emitir E2
+        # Assert: No puede ser PASS ni emitir E0 o superior: un plan rechazado
+        # no ha satisfecho ningún gate de evidencia.
         self.assertEqual(summary.verdict, "FAIL")
-        self.assertEqual(summary.evidence_level, EvidenceLevel.E0_PLAN_VALID)
+        self.assertEqual(summary.evidence_level, EvidenceLevel.E_NONE)
+        for forbidden in (
+            EvidenceLevel.E0_PLAN_VALID,
+            EvidenceLevel.E1_WORKER_COMPLETED,
+            EvidenceLevel.E2_REOPENED_ASSERTIONS_PASS,
+        ):
+            self.assertNotEqual(summary.evidence_level, forbidden)
+
+    def test_policy_rejected_plan_has_no_e0_evidence(self):
+        # Arrange: plan no vacío pero inválido (payload con intento de escape de ruta)
+        hostile_plan = ModPlan(
+            plan_id="PLAN-HOSTILE",
+            description="Invalid plan with path traversal payload",
+            operations=(
+                ModPlanOperation.create(
+                    operation_id="OP-ESCAPE",
+                    kind=ClosedOperation.INSPECT_HEADER,
+                    payload={"relative_path": "../../Skyrim.esm"},
+                    target_plugin=self.plugin_name,
+                ),
+            ),
+        )
+        # Act
+        summary = self.orchestrator.execute_plan(hostile_plan, self.plugin_name)
+        receipt = summary.receipts[0]
+        # Assert: veredicto FAIL por POLICY_VIOLATION
+        self.assertEqual(summary.verdict, "FAIL")
+        self.assertEqual(receipt.status, ProtocolStatus.POLICY_VIOLATION)
+        # Assert: ni el resumen ni el recibo reciben evidencia E0 o superior
+        self.assertEqual(summary.evidence_level, EvidenceLevel.E_NONE)
+        self.assertEqual(receipt.evidence_level, EvidenceLevel.E_NONE)
+        for forbidden in (
+            EvidenceLevel.E0_PLAN_VALID,
+            EvidenceLevel.E1_WORKER_COMPLETED,
+            EvidenceLevel.E2_REOPENED_ASSERTIONS_PASS,
+            EvidenceLevel.E3_STATIC_VALIDATION_PASS,
+            EvidenceLevel.E4_HITL_APPROVED,
+            EvidenceLevel.E5_RUNTIME_VERIFIED,
+        ):
+            self.assertNotEqual(summary.evidence_level, forbidden)
+            self.assertNotEqual(receipt.evidence_level, forbidden)
+        # Assert: el original permanece inmutable
+        self.assertEqual(summary.original_sha_before, summary.original_sha_after)
 
     def test_empty_plan_produces_policy_rejection_receipt(self):
         # Arrange

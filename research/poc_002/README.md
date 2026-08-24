@@ -15,7 +15,8 @@
 - no-overwrite receipts;
 - fail-closed orchestration;
 - empty plans cannot produce vacuous `PASS/E2`;
-- 43 automated tests.
+- 44 automated tests (initial validated baseline: 43; +1 adversarial regression for
+  policy-rejection evidence semantics).
 
 ## What it does not prove
 
@@ -37,6 +38,6 @@ python -m unittest test_suite.py -v
 Expected validated baseline:
 
 ```text
-Ran 43 tests
+Ran 44 tests
 OK
 ```

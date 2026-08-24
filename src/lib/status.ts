@@ -14,7 +14,7 @@ export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 export const STATUS_LABELS: Record<string, string> = {
   VERIFICADO: "Verified",
   // Canonical state for an experiment that was executed and passed its own
-  // gate (for example POC-002: 43/43 tests, E2 evidence).
+  // gate (for example POC-002: 44/44 tests, E2 evidence).
   PASS: "Pass",
   "NO VERIFICADO": "Unverified",
   HIPOTESIS: "Hypothesis",

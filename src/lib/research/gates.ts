@@ -40,7 +40,7 @@ export const gateRows = [
   {
     question: "What is the first reproducible PoC?",
     answer:
-      "POC-002 synthetic TES4 header parse. Executed and passed: 43/43 tests, evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture. POC-001 (read-only CK window inspect) remains designed-only, BLOQUEADO outside a Windows CK machine.",
+      "POC-002 synthetic TES4 header parse. Executed and passed: 44/44 tests, evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture (initial validated baseline: 43 tests). POC-001 (read-only CK window inspect) remains designed-only, BLOQUEADO outside a Windows CK machine.",
     status: "VERIFICADO",
     experimentNeeded:
       "Done for POC-002 (research/poc_002/). Next executable proofs: POC-003 and POC-004 on a Windows runner with legal tool installs.",

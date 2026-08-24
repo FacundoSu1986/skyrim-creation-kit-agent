@@ -29,6 +29,9 @@ def validate_operation_id(operation_id: str) -> str:
 
 
 class EvidenceLevel(Enum):
+    # E_NONE: ningún gate de evidencia satisfecho. El plan/esquema/política fue
+    # rechazado antes de que pudiera otorgarse E0. Un rechazo jamás recibe E0+.
+    E_NONE = "E_NONE"
     E0_PLAN_VALID = "E0_PLAN_VALID"
     E1_WORKER_COMPLETED = "E1_WORKER_COMPLETED"
     E2_REOPENED_ASSERTIONS_PASS = "E2_REOPENED_ASSERTIONS_PASS"

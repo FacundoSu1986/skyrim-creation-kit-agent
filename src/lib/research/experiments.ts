@@ -20,7 +20,7 @@ export const experimentRows = [
     method:
       "Executed against a synthetic TES4 fixture only (HEDR 1.70, FormVersion 44). Strict binary parser; INSPECT_HEADER as the only routed operation with fail-closed capability routing; candidate-only workspace with path containment and immutable originals guarded by SHA-256 invariants; immutable/no-overwrite receipts; empty ModPlan rejected; evidence level E2 reached only after reopen/assertions. No game files touched. Creation Kit, xEdit, PapyrusCompiler, and Mutagen were not executed.",
     successCriteria:
-      "Header fields round-trip. Hash logged. No game files touched. Achieved: python -m compileall PASS; python -m unittest test_suite.py → Ran 43 tests / OK; evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture scope.",
+      "Header fields round-trip. Hash logged. No game files touched. Achieved: python -m compileall PASS; python -m unittest test_suite.py → Ran 44 tests / OK (initial validated baseline: 43); evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture scope.",
     status: "PASS",
     blockedBy:
       "Validated baseline reached (research/poc_002/). Does not prove real ESP/ESM/ESL compatibility, header 1.71, complex records, quests, VMAD, FaceGen, navmesh, or any runtime behavior.",

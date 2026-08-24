@@ -130,7 +130,8 @@ class Orchestrator:
                 operation=ClosedOperation.INSPECT_HEADER,
                 backend="policy-engine",
                 status=ProtocolStatus.POLICY_VIOLATION,
-                evidence_level=EvidenceLevel.E0_PLAN_VALID,
+                # Un plan rechazado no ha satisfecho ningún gate: E_NONE, jamás E0.
+                evidence_level=EvidenceLevel.E_NONE,
                 input_sha256=original_sha_before,
                 output_sha256=original_sha_before,
                 error_message=str(e)
@@ -143,7 +144,7 @@ class Orchestrator:
                 job_id=self.workspace.job_id,
                 plan_id=plan.plan_id,
                 verdict="FAIL",
-                evidence_level=EvidenceLevel.E0_PLAN_VALID,
+                evidence_level=EvidenceLevel.E_NONE,
                 receipts=tuple(receipts),
                 original_sha_before=original_sha_before,
                 original_sha_after=original_sha_after,
