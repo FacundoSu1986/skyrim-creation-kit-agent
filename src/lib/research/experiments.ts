@@ -14,16 +14,16 @@ export const experimentRows = [
   },
   {
     code: "POC-002",
-    title: "Read-only plugin open via Mutagen or header parser",
+    title: "Synthetic TES4 header/parser safety pipeline",
     hypothesis:
       "A synthetic ESP that contains only a TES4 header (no Bethesda records copied) can be parsed for masters, flags, and header version without CK.",
     method:
-      "Generate a minimal TES4 header in the workspace. Parse with a small reader and, if a GPL worker is later approved, with Mutagen overlay. Compare field reads. Never use Skyrim.esm as a fixture in git.",
+      "Executed against a synthetic TES4 fixture only (HEDR 1.70, FormVersion 44). Strict binary parser; INSPECT_HEADER as the only routed operation with fail-closed capability routing; candidate-only workspace with path containment and immutable originals guarded by SHA-256 invariants; immutable/no-overwrite receipts; empty ModPlan rejected; evidence level E2 reached only after reopen/assertions. No game files touched. Creation Kit, xEdit, PapyrusCompiler, and Mutagen were not executed.",
     successCriteria:
-      "Header fields round-trip. Hash logged. No game files touched.",
-    status: "HIPOTESIS",
+      "Header fields round-trip. Hash logged. No game files touched. Achieved: python -m compileall PASS; python -m unittest test_suite.py → Ran 43 tests / OK; evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture scope.",
+    status: "PASS",
     blockedBy:
-      "Not started. Safer than POC-001 in this environment and should run first if we need an executable proof on Linux.",
+      "Validated baseline reached (research/poc_002/). Does not prove real ESP/ESM/ESL compatibility, header 1.71, complex records, quests, VMAD, FaceGen, navmesh, or any runtime behavior.",
   },
   {
     code: "POC-003",

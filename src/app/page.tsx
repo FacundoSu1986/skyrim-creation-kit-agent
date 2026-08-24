@@ -67,8 +67,8 @@ export default async function HomePage() {
           <p className="text-[var(--muted)]">Primary backend: {verdict?.primaryBackend}</p>
         </section>
         <section className="panel">
-          <p className="kicker">Single next step</p>
-          <h2 className="mt-2 text-3xl">ADR, then POC-002</h2>
+          <p className="kicker">Where we are</p>
+          <h2 className="mt-2 text-3xl">POC-002 PASS · ADR-001 PROPOSED</h2>
           <p className="text-[var(--muted)]">{verdict?.nextStep}</p>
           <Link href="/experiments" className="mt-4 inline-block text-[var(--copper-2)]">
             Open experiment board →

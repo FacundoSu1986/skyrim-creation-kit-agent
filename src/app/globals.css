@@ -253,6 +253,13 @@ h3,
   color: var(--moss);
 }
 
+/* Executed experiment that passed its own gate (POC-002). */
+.badge-pass {
+  background: rgba(126, 163, 122, 0.18);
+  color: var(--moss);
+  border: 1px solid rgba(126, 163, 122, 0.45);
+}
+
 .badge-unverified {
   background: rgba(139, 151, 168, 0.16);
   color: var(--steel);

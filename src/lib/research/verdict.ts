@@ -17,5 +17,5 @@ export const verdictRow = {
   mvpCandidate:
     "Natural language → validated ModPlan → one supported write (create MISC item or inspect+clone a workspace record) → candidate plugin in workspace/candidates → reopen + hash + optional xEdit error check → human approval. Never touch live Data.",
   nextStep:
-    "Write ADR-001 choosing hybrid headless-first and a license strategy (GPL worker vs esper). Then execute POC-002. Do not implement the agent product in this phase.",
+    "ADR-001 (hybrid headless-first) is PROPOSED and awaits owner acceptance. POC-002 already passed its synthetic-fixture gate (43/43 tests, E2 evidence). Next executable units keep canonical numbering: POC-003 (PapyrusCompiler dry-invoke) and POC-004 (allowlisted xEdit validator). Isolated-worker IPC work continues under ADR-002 / POC-IPC identifiers, not POC-003.",
 };
