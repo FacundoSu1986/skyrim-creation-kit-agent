@@ -1,0 +1,44 @@
+name: Research / experiment
+about: Propose or record an evidence-gated research unit
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: "Use evidence labels precisely. Do not claim runtime behavior that was not reproduced."
+  - type: input
+    id: code
+    attributes:
+      label: Experiment code
+      placeholder: POC-001 / EXP-...
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: Method
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: Initial status
+      options:
+        - HIPOTESIS
+        - NO VERIFICADO
+        - EXPERIMENTAL
+        - BLOQUEADO
+        - LEGAL_REVIEW_REQUIRED
+    validations:
+      required: true

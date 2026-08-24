@@ -280,7 +280,7 @@ Mitigations: closed operation enum; idempotent ensure_*; no "do what you think";
     sortOrder: 1,
     body: `Each axis is 1–10, higher is better (including simplicity, fewer dangerous deps, and lower corruption risk). Weights: robustness 15, security 15, testability 12, corruption risk 12, maintainability 10, license fit 10, automation 8, compatibility 6, performance 5, simplicity 4, external deps 3. Scores are (weighted sum)/10, rounded.
 
-Option D scored 79. Option E scored 74. E is still the recommendation because D cannot name CK-exclusive work without lying. E uses D as the default route.`,
+Option D scored 82. Option E scored 74. E is still the recommendation because D cannot name CK-exclusive work without lying. E uses D as the default route.`,
   },
   {
     documentSlug: "architecture-options",

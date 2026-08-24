@@ -40,9 +40,10 @@ export const gateRows = [
   {
     question: "What is the first reproducible PoC?",
     answer:
-      "On this Linux sandbox: POC-002 synthetic TES4 header parse. On a Windows CK machine: POC-001 read-only window inspect. Neither writes game data.",
-    status: "HIPOTESIS",
-    experimentNeeded: "Execute POC-002 here only after Gate 1 ADR. Do not start a product.",
+      "POC-002 synthetic TES4 header parse. Executed and passed: 44/44 tests, evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture (initial validated baseline: 43 tests). POC-001 (read-only CK window inspect) remains designed-only, BLOQUEADO outside a Windows CK machine.",
+    status: "VERIFICADO",
+    experimentNeeded:
+      "Done for POC-002 (research/poc_002/). Next executable proofs: POC-003 and POC-004 on a Windows runner with legal tool installs.",
   },
   {
     question: "How do we avoid corruption?",

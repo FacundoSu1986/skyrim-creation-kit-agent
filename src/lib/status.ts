@@ -1,5 +1,6 @@
 export const EVIDENCE_STATUSES = [
   "VERIFICADO",
+  "PASS",
   "NO VERIFICADO",
   "HIPOTESIS",
   "EXPERIMENTAL",
@@ -12,6 +13,9 @@ export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 
 export const STATUS_LABELS: Record<string, string> = {
   VERIFICADO: "Verified",
+  // Canonical state for an experiment that was executed and passed its own
+  // gate (for example POC-002: 44/44 tests, E2 evidence).
+  PASS: "Pass",
   "NO VERIFICADO": "Unverified",
   HIPOTESIS: "Hypothesis",
   EXPERIMENTAL: "Experimental",
@@ -24,6 +28,8 @@ export function statusClass(status: string): string {
   switch (status) {
     case "VERIFICADO":
       return "badge-verified";
+    case "PASS":
+      return "badge-pass";
     case "NO VERIFICADO":
       return "badge-unverified";
     case "HIPOTESIS":
