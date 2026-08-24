@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node / Next.js (Discovery Desk research UI)
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+.npm/
+
+# Environment files — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local workspaces / generated candidates
+workspace/
+workspaces/
+*.tmp
+*.log
+
+# Game/editor files must never be committed
+*.esm
+*.esp
+*.esl
+*.bsa
+*.ba2
+*.pex
+CreationKit.exe
+PapyrusCompiler.exe
+SkyrimSE.exe
