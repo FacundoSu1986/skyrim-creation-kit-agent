@@ -1,0 +1,39 @@
+name: Discovery Desk validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: Discovery Desk / Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22"]
+    env:
+      # src/db/index.ts throws at import time when DATABASE_URL is unset, and
+      # `next build` imports route modules while collecting page data. The
+      # build never opens a connection (the pg pool is lazy), so the loopback
+      # development fixture documented in .env.example is sufficient here.
+      # This is not a real credential and no PostgreSQL service is required.
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install (npm ci)
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
