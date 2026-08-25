@@ -1,7 +1,7 @@
 # ADR-002 — Isolated worker IPC protocol and transactional boundaries
 
 - **Status:** PROPOSED
-- **Date:** 2026-08-25 (revised same day after first architecture review)
+- **Date:** 2026-08-25 (revised after architecture review rounds)
 - **Scope:** IPC protocol and transactional boundaries for isolated workers.
 - **Depends on:** [ADR-001](ADR-001-hybrid-headless-first-architecture.md) (ACCEPTED).
 - **Related:** POC-002 (PASS — synthetic TES4 safety pipeline), future **POC-IPC-001**.
@@ -38,7 +38,7 @@ The IPC boundary exists to enforce this split mechanically: nothing crosses it e
 | D11 | Workers write only `candidates/` and `temp/`; `originals/` is immutable; candidate→live promotion happens nowhere in this design. |
 | D12 | POC-IPC-001 outcomes use a session-level `PASS`/`FAIL` verdict **separate** from the artifact evidence ladder; no E3/E4/E5 claims and no E2 reuse. |
 | D13 | Exactly one **monotonic** session deadline starts immediately at spawn and governs stdin write, stdout/stderr reads, worker execution, and wait/reap. Wall-clock time is audit-only. |
-| D14 | Workers emit all evidence as untrusted stdout bytes. Only the orchestrator persists `receipts/`, `logs/`, and `reports/` content, after validation. A worker can never forge filesystem evidence directly. |
+| D14 | Workers — and any future validator process — emit all evidence as untrusted stdout bytes. Only the orchestrator persists `receipts/`, `logs/`, and `reports/` content, always after validation. No component writes trusted evidence areas directly. |
 | D15 | Wire schemas are closed-world at every nesting level; unknown fields reject recursively. Extensions require a protocol version bump. |
 
 ## Trust boundaries
@@ -133,12 +133,28 @@ The grammar excludes separators, drive letters (`:`), backslashes, UNC prefixes,
 
 - Member of the closed operation enum, ≤ 64 chars, same safe-name discipline as above. Must exist in both orchestrator and worker registries for the negotiated backend.
 
-Correlation invariants:
+Correlation invariants — all six are mandatory; any mismatch ⇒ `RECEIPT_MISMATCH`:
 
-- `response.request_id == request.request_id` and `receipt.request_id == request.request_id` — else `RECEIPT_MISMATCH`.
-- `response.job_id == request.job_id` and `receipt.job_id == request.job_id` — else `RECEIPT_MISMATCH` (wrong-job responses are rejected even if everything else looks perfect).
-- `receipt.operation == request.operation` — else `RECEIPT_MISMATCH`.
-- Any identifier outside its contract → `INVALID_REQUEST` (orphaning the request before any process spawns).
+- `response.request_id == request.request_id`
+- `response.job_id == request.job_id`
+- `response.operation == request.operation`
+- `receipt.request_id == request.request_id`
+- `receipt.job_id == request.job_id`
+- `receipt.operation == request.operation`
+
+Wrong-job or wrong-request responses are rejected even if everything else looks perfect. The taxonomy deliberately keeps the single code `RECEIPT_MISMATCH` for all six; a future split into `CORRELATION_MISMATCH` would be a taxonomy change and is out of scope for protocol v1.
+
+Normative rejection mapping per identifier field (exactly one code per case, so future tests assert an exact value):
+
+| Violation | Code |
+| --- | --- |
+| `protocol_version` wrong type (bool/float/string/missing/null) | `INVALID_REQUEST` |
+| `protocol_version` well-typed integer but ≠ 1 | `UNSUPPORTED_PROTOCOL_VERSION` |
+| `request_id` violates its contract (shape/version/case/length/type) | `INVALID_REQUEST` |
+| `job_id` violates its contract (grammar/length/embedded `..`) | `INVALID_JOB_ID` |
+| `operation` not in the closed enum / malformed | `INVALID_OPERATION` |
+
+All of these orphan the request before any process spawns.
 
 ## Message schemas
 
@@ -170,12 +186,32 @@ No other fields.
 | Field | Type | Constraints |
 | --- | --- | --- |
 | `protocol_version` | integer | exactly `1` |
-| `request_id` / `job_id` | string | echo of request values |
-| `operation` | string | echo of request value |
+| `request_id` / `job_id` / `operation` | string | echo of request values |
 | `status` | string | `SUCCESS` or an error code from the taxonomy |
-| `started_at_ms` / `finished_at_ms` | integers | epoch millis for **audit only**; `finished ≥ started`; `type(x) is int` — deadlines/durations never derive from these |
-| `worker_receipt` | object or null | present iff `status == SUCCESS`; Receipt schema below |
-| `error` | object or null | Error object below; present iff `status != SUCCESS` |
+| `started_at_ms` / `finished_at_ms` | integers | epoch millis for **audit only**; `type(x) is int`. No ordering invariant is enforced between them — wall-clock corrections must not fail an otherwise-valid exchange; durations derive from the monotonic clock, never from these fields |
+| `worker_receipt` | object or null | **always present.** Receipt object iff `status == "SUCCESS"`; otherwise exactly `null` |
+| `error` | object or null | **always present.** Error object iff `status != "SUCCESS"`; otherwise exactly `null` |
+
+Presence/null invariants (normative, testable):
+
+- `status == "SUCCESS"` ⇒ `worker_receipt` is a schema-valid Receipt object AND `error` is exactly `null`.
+- `status != "SUCCESS"` ⇒ `error` is a schema-valid Error object with `error.code == status` AND `worker_receipt` is exactly `null`.
+- Omitting either field is invalid — the closed-world validator requires both keys on every Response.
+
+Canonical shapes:
+
+```json
+{"protocol_version": 1, "request_id": "…", "job_id": "…", "operation": "…",
+ "status": "SUCCESS", "started_at_ms": 0, "finished_at_ms": 0,
+ "worker_receipt": {"…": "…"}, "error": null}
+```
+
+```json
+{"protocol_version": 1, "request_id": "…", "job_id": "…", "operation": "…",
+ "status": "PROCESS_FAILED", "started_at_ms": 0, "finished_at_ms": 0,
+ "worker_receipt": null,
+ "error": {"code": "PROCESS_FAILED", "message": "worker exited with code 3"}}
+```
 
 Total serialized response ≤ `MAX_RESPONSE_BYTES`.
 
@@ -186,7 +222,7 @@ Total serialized response ≤ `MAX_RESPONSE_BYTES`.
 | `code` | string | member of the failure taxonomy; bounded ASCII identifier |
 | `message` | string | bounded UTF-8 ≤ `MAX_STRING_BYTES`; diagnostics only — never parsed, never used for control flow, must not embed secret material |
 
-Unknown fields reject.
+Unknown fields reject. Additionally: whenever `status != "SUCCESS"`, `code` MUST equal `status` (a response cannot claim `PROCESS_FAILED` while carrying `error.code = INVALID_RESPONSE`; such responses reject as `INVALID_RESPONSE`).
 
 ### Receipt (worker_receipt)
 
@@ -197,7 +233,7 @@ Machine-readable, produced by the worker, validated by the orchestrator **before
 | `protocol_version` | integer | `1` |
 | `request_id` / `job_id` / `operation` | string | correlate to request |
 | `status` | string | `SUCCESS` or worker-level error code |
-| `started_at_ms` / `finished_at_ms` | integers | epoch millis, monotone pair, audit-only |
+| `started_at_ms` / `finished_at_ms` | integers | epoch millis, audit-only; no ordering invariant enforced (same rationale as Response) |
 | `inputs` | array of InputRef | ≤ `MAX_INPUT_COUNT` |
 | `outputs` | array of OutputRef | ≤ `MAX_OUTPUT_COUNT` |
 | `worker_assertions` | array of Assertion | ≤ `MAX_ASSERTION_COUNT`; non-empty for operations that define assertions |
@@ -426,18 +462,18 @@ TRUSTED_JOBS_ROOT/
 | `candidates/` | WRITE (no-overwrite) | verify / hash | read |
 | `temp/` | WRITE | cleanup at will | no contract |
 | `receipts/` | **NO WRITE** | **WRITE append-only** | read |
-| `reports/` | **NO WRITE** | manage / read | WRITE |
+| `reports/` | **NO WRITE** | **WRITE** (only after validating an emitted report) | emits its typed report through a validated stdout channel; **no direct write** |
 | `logs/` | **NO WRITE** | WRITE | optional read |
 
-Principle: the worker never persists trusted evidence directly.
+Principle: trusted evidence areas (`receipts/`, `reports/`, `logs/`) are written by the orchestrator alone, always after validation. Workers and validators alike produce only untrusted bytes on their output channel; neither ever writes these areas directly.
 
 ### Evidence flow
 
-1. The `worker_receipt` leaves the worker as untrusted stdout bytes.
+1. Evidence leaves its producing process — worker receipt now, ValidatorReport in the future — as untrusted stdout bytes.
 2. The orchestrator validates it fully: recursive schema, hash formats, correlation, status, assertions.
-3. Only after validation may the orchestrator persist its own canonical copy under `receipts/` (and the capped stderr under `logs/`).
+3. Only after validation may the orchestrator persist its own canonical copy under the matching trusted area (`receipts/` for worker receipts; `reports/` for validated validator reports) and the capped stderr under `logs/`.
 
-Because `receipts/`, `reports/`, and `logs/` are worker-unwritable areas, a malicious worker cannot forge filesystem evidence; the worst it can do is emit bytes that validation rejects.
+Because `receipts/`, `reports/`, and `logs/` are unwritable by producing processes, a malicious worker — or a compromised future validator — cannot forge filesystem evidence; the worst it can do is emit bytes that validation rejects.
 
 ### Invariants
 
@@ -519,7 +555,7 @@ Python `bool` subclasses `int`; therefore `isinstance(protocol_version, int)` ac
 | Malformed JSON | strict decode, duplicate-key rejection, trailing-data rejection | — |
 | JSON bombs / oversized payload | request/response/stream caps enforced during transfer; size cap bounds nesting | depth cap optional future hardening |
 | Response spoofing (foreign process on pipes) | one-shot pipes created per spawn; dual-level correlation; exit-code gating | local-machine adversary out of scope (out of threat model) |
-| Receipt mismatch / forged filesystem evidence | dual-level correlation; receipts/logs/reports worker-unwritable; orchestrator-only persistence after validation | — |
+| Receipt mismatch / forged filesystem evidence | six-way dual-level correlation; receipts/logs/reports unwritable to producing processes; orchestrator-only persistence after validation | — |
 | Request replay | fresh orchestrator-generated `request_id`; optional duplicate tracking; no-overwrite collision as defense in depth | not a general nonce system (stated, not overclaimed) |
 | Wrong-job response | `job_id` echo checked at both levels | — |
 | Partial write presented as success | atomicity rules; complete-artifact-or-FAIL; invariant re-checks | — |
@@ -577,9 +613,9 @@ Stdout/stderr: oversize stdout · oversize stderr · malformed UTF-8 · malforme
 
 Process: hang hitting the deadline · crash · nonzero exit + plausible valid JSON · zero exit + invalid JSON.
 
-Correlation: wrong `request_id` · wrong `job_id` · wrong `operation` · receipt/response mismatch.
+Correlation: wrong `request_id` · wrong `job_id` · wrong `operation` · receipt/response mismatch · `error.code` differing from `status`.
 
-Receipt: missing receipt on SUCCESS · receipt `FAILED` while response `SUCCESS` · unknown nested receipt field · malformed SHA-256 (uppercase, short, prefixed, whitespace) · output path outside `candidates/` · counts over `MAX_INPUT_COUNT` / `MAX_OUTPUT_COUNT` / `MAX_WARNING_COUNT` / `MAX_ASSERTION_COUNT` · warning item over `MAX_STRING_BYTES`.
+Receipt: missing receipt on SUCCESS · null/absent `error` on failure · `error.code` ≠ `status` · receipt `FAILED` while response `SUCCESS` · unknown nested receipt field · malformed SHA-256 (uppercase, short, prefixed, whitespace) · output path outside `candidates/` · counts over `MAX_INPUT_COUNT` / `MAX_OUTPUT_COUNT` / `MAX_WARNING_COUNT` / `MAX_ASSERTION_COUNT` · warning item over `MAX_STRING_BYTES` · backwards wall-clock timestamps accepted (audit-only; locks the no-ordering-invariant decision).
 
 Assertions: empty required assertions · `passed: false` correctly propagated to FAIL · `passed: 1` rejected (non-boolean) · array/object `expected`/`actual` rejected.
 

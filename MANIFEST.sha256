@@ -10,7 +10,7 @@ cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 6ecba72873d6067779657cfd3367fd02b9f06954c5de650e51396894dde2c8f3  ./README.md
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
-4a35aea2e12e068742b0906be680e92c453ce5526c897c53f82e1ddfe331184a  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
+065d8528333f75e1af544cceb205f05c85fa8f654a46c268abcd7ebbfff37b16  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md
 ec381d6e48340621ddcc581357ba19eacef8e1d69173d07d73240ff29c75eff9  ./docs/research/capability-matrix.md
