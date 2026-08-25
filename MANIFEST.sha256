@@ -3,7 +3,7 @@ e028774f299851e52f11b2c33e8e5130989ddfaff9e9bd593c3e41b2111d1eff  ./.github/CODE
 f6a01dcffd70c09dca98bed81d1163e8900045925db1dae6845432bad949e3d3  ./.github/dependabot.yml
 12da2d1b18521db24e8c82bdd72f2c305dec11a78942a0eec5b5aae0d3db0484  ./.github/pull_request_template.md
 f4925659763bb59a95687d1900645c00f04d0c6c97f3a693b9c8d2251fc62925  ./.github/workflows/discovery-desk.yml
-3171cec4ec0619c1931b1e6b5b3c2db606db6f338b8f984d6860e3b028009c51  ./.github/workflows/poc002.yml
+f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/workflows/poc002.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 6d70d34c12959e2d9b0ad594e2f1213c9f543ab79fd5eb82b14a10bac6e3e877  ./AGENTS.md
 625015e89e1ec19fe50e31c781f57afe2f82d58f04775c3f01e6b6ae36418300  ./CONTRIBUTING.md
