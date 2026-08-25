@@ -21,6 +21,10 @@ VIABLE WITH LIMITATIONS
 - Hybrid orchestrator with headless-first primary path.
 - Acceptance authorizes the architecture direction only; no worker, bridge, or runtime integration is implemented or authorized by it.
 
+## Proposed decisions
+
+- ADR-002 — isolated worker IPC protocol and transactional boundaries: `PROPOSED`. Design only; no IPC implementation exists and none is authorized by the proposal.
+
 ## Not implemented / not verified
 
 - general real-plugin writer;
