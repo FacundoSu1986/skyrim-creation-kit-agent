@@ -1,6 +1,6 @@
 # ADR-002 — Isolated worker IPC protocol and transactional boundaries
 
-- **Status:** PROPOSED
+- **Status:** ACCEPTED (2026-08-25; see [Acceptance record](#acceptance-record))
 - **Date:** 2026-08-25 (revised after architecture review rounds)
 - **Scope:** IPC protocol and transactional boundaries for isolated workers.
 - **Depends on:** [ADR-001](ADR-001-hybrid-headless-first-architecture.md) (ACCEPTED).
@@ -664,6 +664,14 @@ ADR-002 may move PROPOSED → ACCEPTED when:
 - evidence semantics make no overclaims;
 - the process-isolation vs OS-sandbox boundary is stated without overclaims (`OS_SANDBOX` explicitly NO VERIFICADO / out of POC scope);
 - POC-IPC-001's scope is minimal and verifiable.
+
+## Acceptance record
+
+- **Status change:** PROPOSED → ACCEPTED
+- **Date:** 2026-08-25
+- **Authorized by:** the repository owner, after four architecture review rounds.
+
+Accepted by the repository owner on 2026-08-25 after four architecture review rounds. Acceptance establishes the IPC/process-isolation architecture contract. It does not claim that POC-IPC-001 is implemented or that OS-level sandboxing has been verified (`OS_SANDBOX` remains NO VERIFICADO). The next work item is POC-IPC-001, implementing this contract under its own evidence rules.
 
 ## Out of scope
 
