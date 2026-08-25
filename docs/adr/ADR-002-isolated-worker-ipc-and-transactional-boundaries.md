@@ -11,7 +11,7 @@
 
 ADR-001 accepted a hybrid, headless-first architecture whose execution layer consists of isolated deterministic workers behind a capability router. POC-002 validated the orchestration invariants inside one process: closed operation enum, truthful capability routing, candidate-only workspace with immutable originals, no-overwrite receipts, and the `E_NONE`/`E0`–`E5` evidence ladder.
 
-What is still undefined is the **boundary**: how a trusted orchestrator talks to an out-of-process worker such that a compromised, buggy, hung, or lying worker cannot escalate into arbitrary execution, workspace escape, unbounded resource consumption, or false success claims. Prior exploratory prototypes attempted this boundary and failed review on specific, recurring defects (trusted root supplied by the request, ambiguous identifier bounds, `bool`-as-`int` schema confusion, thin success semantics, unbounded output capture, absent timeout/cleanup). This ADR defines the protocol so that the future POC-IPC-001 can be implemented without architectural ambiguity and so that reviewers can test against explicit invariants.
+What is still undefined is the **boundary**: how a trusted orchestrator talks to an out-of-process worker so that a buggy, hung, or lying worker cannot produce false success claims, unbounded resource consumption, or protocol confusion — while stating explicitly that process isolation does **not** confine what a compromised worker can do to the filesystem ([Process isolation is not a sandbox](#process-isolation-is-not-a-sandbox)). Prior exploratory prototypes attempted this boundary and failed review on specific, recurring defects (trusted root supplied by the request, ambiguous identifier bounds, `bool`-as-`int` schema confusion, thin success semantics, unbounded output capture, absent timeout/cleanup). This ADR defines the protocol so that the future POC-IPC-001 can be implemented without architectural ambiguity and so that reviewers can test against explicit invariants.
 
 This document is **design only**. It implements nothing. Where behavior is a design decision that has never been demonstrated on the target platform, this ADR says **NO VERIFICADO** rather than implying support.
 
@@ -38,8 +38,9 @@ The IPC boundary exists to enforce this split mechanically: nothing crosses it e
 | D11 | Workers write only `candidates/` and `temp/`; `originals/` is immutable; candidate→live promotion happens nowhere in this design. |
 | D12 | POC-IPC-001 outcomes use a session-level `PASS`/`FAIL` verdict **separate** from the artifact evidence ladder; no E3/E4/E5 claims and no E2 reuse. |
 | D13 | Exactly one **monotonic** session deadline starts immediately at spawn and governs stdin write, stdout/stderr reads, worker execution, and wait/reap. Wall-clock time is audit-only. |
-| D14 | Workers — and any future validator process — emit all evidence as untrusted stdout bytes. Only the orchestrator persists `receipts/`, `logs/`, and `reports/` content, always after validation. No component writes trusted evidence areas directly. |
+| D14 | Workers — and any future validator process — emit all evidence as untrusted stdout bytes. Only the orchestrator persists `receipts/`, `logs/`, and `reports/` content, always after validation. No component writes trusted evidence areas directly. *(Protocol contract between well-behaved participants; not OS enforcement.)* |
 | D15 | Wire schemas are closed-world at every nesting level; unknown fields reject recursively. Extensions require a protocol version bump. |
+| D16 | **Process isolation is not an OS sandbox**: worker code is trusted code running with the host account's privileges; only its outputs are untrusted data. OS confinement is a separate future boundary (`OS_SANDBOX: NO VERIFICADO / OUT OF SCOPE FOR POC-IPC-001`). |
 
 ## Trust boundaries
 
@@ -70,6 +71,25 @@ The IPC boundary exists to enforce this split mechanically: nothing crosses it e
 - candidate artifacts until independently re-opened/asserted.
 
 Rule: data may flow upward only after the receiving layer validates it. The orchestrator treats the worker exactly as it treats any other untrusted producer of bytes.
+
+## Process isolation is not a sandbox
+
+The trust split above is between **code** and **data**:
+
+- **Worker executable and its code: TRUSTED CODE.** They come exclusively from the trusted worker registry and run as an ordinary child process with the filesystem privileges of the account running the orchestrator.
+- **Worker stdout/response/receipt/artifacts: UNTRUSTED DATA**, validated before any use or persistence.
+
+Process isolation therefore draws a *data* boundary, not a *privilege* boundary:
+
+> **Process isolation ≠ security sandbox.**
+>
+> POC-IPC-001 proves protocol/process isolation, not OS-level filesystem confinement.
+> A compromised worker executable may retain the filesystem privileges of the account running it — it could ignore this entire protocol and read or write anything its user can access.
+> OS-level confinement is a separate future security boundary (for example dedicated low-privilege account + ACLs / restricted tokens / AppContainer on Windows) and must be designed and validated **before untrusted third-party worker code is ever permitted**. Job Objects alone do not restrict arbitrary filesystem access.
+
+`OS_SANDBOX`: **NO VERIFICADO — OUT OF SCOPE FOR POC-IPC-001.**
+
+Everything in this ADR constrains *legitimate* operations and defines how untrusted *outputs* are judged; none of it prevents a hostile process from acting outside the protocol. Where that distinction matters (evidence areas, threat model), this ADR says so explicitly instead of implying enforcement that does not exist.
 
 ## Process and transport model
 
@@ -379,9 +399,9 @@ Stable codes for tests and summaries. Emission point noted; both sides use the s
 
 | Code | Meaning | Emitted by |
 | --- | --- | --- |
-| `INVALID_REQUEST` | schema/size/encoding/unknown-field/type violations, bad identifiers, malformed UUIDs, out-of-range `timeout_ms` | orchestrator (pre-spawn) or worker |
+| `INVALID_REQUEST` | schema/size/encoding/unknown-field violations; wrong-typed numerics (including wrong-typed `protocol_version`); malformed `request_id`; out-of-range or wrong-typed `timeout_ms`. Identifier violations use their own codes (`INVALID_JOB_ID`, `INVALID_OPERATION`) — never this one | orchestrator (pre-spawn) or worker |
 | `REQUEST_LIMIT_EXCEEDED` | request above `MAX_REQUEST_BYTES` | orchestrator |
-| `UNSUPPORTED_PROTOCOL_VERSION` | version ≠ 1 or wrong type | both |
+| `UNSUPPORTED_PROTOCOL_VERSION` | `protocol_version` is exactly an integer but its value ≠ 1 (wrong types ⇒ `INVALID_REQUEST`, per the normative identifier table) | both |
 | `INVALID_JOB_ID` | identifier contract violation incl. embedded `..` | orchestrator (pre-spawn) |
 | `INVALID_OPERATION` | not in allowlist / unsupported by worker | both |
 | `POLICY_VIOLATION` | policy engine rejection pre-spawn | orchestrator |
@@ -473,7 +493,7 @@ Principle: trusted evidence areas (`receipts/`, `reports/`, `logs/`) are written
 2. The orchestrator validates it fully: recursive schema, hash formats, correlation, status, assertions.
 3. Only after validation may the orchestrator persist its own canonical copy under the matching trusted area (`receipts/` for worker receipts; `reports/` for validated validator reports) and the capped stderr under `logs/`.
 
-Because `receipts/`, `reports/`, and `logs/` are unwritable by producing processes, a malicious worker — or a compromised future validator — cannot forge filesystem evidence; the worst it can do is emit bytes that validation rejects.
+Because the protocol never lets producing processes write these areas, a well-behaved worker — or validator — can forge no filesystem evidence; the worst it can do is emit bytes that validation rejects. This is a **contract between participants that follow the protocol, not OS enforcement**: a compromised worker retains the host account's privileges and could still tamper with files outside the protocol ([Process isolation is not a sandbox](#process-isolation-is-not-a-sandbox)). Detecting such out-of-band tampering (hash re-checks, append-only expectations) is defense in depth; preventing it requires the future confinement layer.
 
 ### Invariants
 
@@ -555,7 +575,8 @@ Python `bool` subclasses `int`; therefore `isinstance(protocol_version, int)` ac
 | Malformed JSON | strict decode, duplicate-key rejection, trailing-data rejection | — |
 | JSON bombs / oversized payload | request/response/stream caps enforced during transfer; size cap bounds nesting | depth cap optional future hardening |
 | Response spoofing (foreign process on pipes) | one-shot pipes created per spawn; dual-level correlation; exit-code gating | local-machine adversary out of scope (out of threat model) |
-| Receipt mismatch / forged filesystem evidence | six-way dual-level correlation; receipts/logs/reports unwritable to producing processes; orchestrator-only persistence after validation | — |
+| Receipt mismatch / forged filesystem evidence | six-way dual-level correlation; receipts/logs/reports unwritable to producing processes; orchestrator-only persistence after validation | contract-level rule; rogue out-of-band writes by a compromised worker are detectable defense in depth, prevented only by the future OS_SANDBOX layer |
+| Compromised worker bypassing the protocol entirely (direct arbitrary file access) | out of scope for this design: worker code is trusted code; process isolation is not a sandbox | `OS_SANDBOX`: NO VERIFICADO / OUT OF SCOPE FOR POC-IPC-001 — future dedicated account/ACL/AppContainer boundary |
 | Request replay | fresh orchestrator-generated `request_id`; optional duplicate tracking; no-overwrite collision as defense in depth | not a general nonce system (stated, not overclaimed) |
 | Wrong-job response | `job_id` echo checked at both levels | — |
 | Partial write presented as success | atomicity rules; complete-artifact-or-FAIL; invariant re-checks | — |
@@ -623,9 +644,9 @@ Paths: traversal-shaped token · absolute-path token · drive-qualified token ·
 
 Timeout/cleanup: direct-child termination on deadline · descendant holding pipes cannot extend the session · Windows cleanup claim limited to what is demonstrated · POSIX process-group cleanup exercised.
 
-**Explicitly excluded:** real Skyrim files; PapyrusCompiler; xEdit; Mutagen; Creation Kit automation; CKPE; live Data writes; network transports; persistent daemons; performance benchmarking.
+**Explicitly excluded:** real Skyrim files; PapyrusCompiler; xEdit; Mutagen; Creation Kit automation; CKPE; live Data writes; network transports; persistent daemons; performance benchmarking; **OS-level confinement/sandboxing** (a separate future security boundary per [Process isolation is not a sandbox](#process-isolation-is-not-a-sandbox)).
 
-**Expected evidence claim:** session-level PASS/FAIL over transport/execution/correlation properties only, per [Evidence semantics](#evidence-semantics), with per-platform honesty about which cleanup strategies were demonstrated.
+**Expected evidence claim:** session-level PASS/FAIL over transport/execution/correlation properties only, per [Evidence semantics](#evidence-semantics), with per-platform honesty about which cleanup strategies were demonstrated. The POC proves protocol/process isolation — **not** OS filesystem confinement (`OS_SANDBOX` remains NO VERIFICADO / out of scope).
 
 ## Acceptance criteria for this ADR
 
@@ -641,6 +662,7 @@ ADR-002 may move PROPOSED → ACCEPTED when:
 - the failure taxonomy covers observable states, including pipe-edge classifications;
 - path containment rules are concrete enough to test, with the trusted-vs-token separation stated canonically;
 - evidence semantics make no overclaims;
+- the process-isolation vs OS-sandbox boundary is stated without overclaims (`OS_SANDBOX` explicitly NO VERIFICADO / out of POC scope);
 - POC-IPC-001's scope is minimal and verifiable.
 
 ## Out of scope
