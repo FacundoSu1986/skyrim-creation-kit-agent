@@ -8,7 +8,9 @@ This roadmap is evidence-gated. Passing one proof does not authorize every later
 
 ## ADR-001 — Product architecture
 
-**Status:** `PROPOSED`.
+**Status:** `ACCEPTED` (2026-08-25).
+
+Next architectural unit: ADR-002 + POC-IPC identifiers (isolated-worker IPC protocol and transactional boundaries). Acceptance does not by itself authorize any implementation.
 
 ## POC-002 — Synthetic TES4 safety pipeline
 
