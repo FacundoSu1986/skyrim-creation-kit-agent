@@ -18,8 +18,9 @@ VIABLE WITH LIMITATIONS
 ## Accepted architecture
 
 - ADR-001: `ACCEPTED` (2026-08-25).
+- ADR-002 — isolated worker IPC protocol and transactional boundaries: `ACCEPTED` (2026-08-25).
 - Hybrid orchestrator with headless-first primary path.
-- Acceptance authorizes the architecture direction only; no worker, bridge, or runtime integration is implemented or authorized by it.
+- Acceptance authorizes the architecture contract only; no IPC implementation exists yet. The next work item is POC-IPC-001, which must implement the accepted contract under its own evidence rules (`OS_SANDBOX` remains NO VERIFICADO).
 
 ## Not implemented / not verified
 

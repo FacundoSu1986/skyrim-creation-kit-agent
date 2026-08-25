@@ -12,6 +12,12 @@ This roadmap is evidence-gated. Passing one proof does not authorize every later
 
 Next architectural unit: ADR-002 + POC-IPC identifiers (isolated-worker IPC protocol and transactional boundaries). Acceptance does not by itself authorize any implementation.
 
+## ADR-002 — Isolated worker IPC and transactional boundaries
+
+**Status:** `ACCEPTED` (2026-08-25, after four architecture review rounds).
+
+Defines the trusted-root, bounded-I/O, success-contract, timeout/cleanup, path-containment, and evidence-semantics rules that **POC-IPC-001** must implement. Acceptance establishes the architecture contract only — no IPC code exists yet.
+
 ## POC-002 — Synthetic TES4 safety pipeline
 
 **Status:** **PASS**.
@@ -32,9 +38,9 @@ Verify deterministic external compiler invocation, timeout behavior, stdout/stde
 
 Verify a pinned allowlisted script with `-script -autoexit`, explicit completion evidence, timeout, and no generated Pascal.
 
-### POC-IPC / ADR-002 — subprocess protocol and transaction boundary
+### POC-IPC-001 — isolated worker protocol (next)
 
-Continue the IPC hardening work under a **non-conflicting identifier**. Previously reviewed versions remain `CHANGES_REQUIRED`; do not import them as passing code.
+Implement the minimal proof defined by [ADR-002](ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) (accepted 2026-08-25). This is the next work item. Previously reviewed versions remain `CHANGES_REQUIRED`; do not import them as passing code.
 
 ## Later product milestones
 
