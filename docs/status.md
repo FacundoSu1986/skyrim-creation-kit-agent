@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-08-24
+Updated: 2026-08-25
 
 ## Overall
 
@@ -15,10 +15,11 @@ VIABLE WITH LIMITATIONS
 - Candidate workspace/path containment.
 - Fail-closed receipts and immutable-original hash invariant.
 
-## Proposed architecture
+## Accepted architecture
 
-- ADR-001: `PROPOSED`.
+- ADR-001: `ACCEPTED` (2026-08-25).
 - Hybrid orchestrator with headless-first primary path.
+- Acceptance authorizes the architecture direction only; no worker, bridge, or runtime integration is implemented or authorized by it.
 
 ## Not implemented / not verified
 

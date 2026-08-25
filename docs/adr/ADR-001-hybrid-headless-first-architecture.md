@@ -1,6 +1,6 @@
 # ADR-001 — Hybrid headless-first architecture and tool separation
 
-- **Status:** PROPOSED
+- **Status:** ACCEPTED (2026-08-25; see [Acceptance record](#acceptance-record))
 - **Date:** 2026-08-23
 - **Scope:** Product architecture for a Skyrim SE/AE authoring agent
 
@@ -147,6 +147,18 @@ Automatic retries are forbidden for potentially non-idempotent writes unless the
 ## Acceptance gate
 
 ADR-001 may move from `PROPOSED` to `ACCEPTED` once repository maintainers explicitly approve this architecture and no contradictory research evidence has emerged.
+
+## Acceptance record
+
+- **Status change:** PROPOSED → ACCEPTED
+- **Date:** 2026-08-25
+- **Authorized by:** repository owner, via explicit instruction accompanying the acceptance PR
+- **Basis:**
+  - POC-002 remains PASS (44/44 tests, `E2_REOPENED_ASSERTIONS_PASS`, synthetic TES4 scope).
+  - No contradictory research evidence has emerged since the proposal.
+  - The architecture is already reflected in validated practice: closed operation enum and truthful capability routing, candidate-only workspace with immutable originals, receipts, fail-closed orchestration, and the E_NONE/E0–E5 evidence ladder.
+
+Acceptance authorizes the architecture **direction** only. It does not authorize implementation of any specific worker, bridge, or runtime integration. Each future unit of work still passes its own gate: ADR-002 + POC-IPC identifiers for isolated-worker IPC (never POC-003), POC-003 PapyrusCompiler dry-invoke, POC-004 xEdit validator — all currently `NO VERIFICADO`.
 
 ## Next authorized implementation
 

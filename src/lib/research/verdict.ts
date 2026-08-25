@@ -17,5 +17,5 @@ export const verdictRow = {
   mvpCandidate:
     "Natural language → validated ModPlan → one supported write (create MISC item or inspect+clone a workspace record) → candidate plugin in workspace/candidates → reopen + hash + optional xEdit error check → human approval. Never touch live Data.",
   nextStep:
-    "ADR-001 (hybrid headless-first) is PROPOSED and awaits owner acceptance. POC-002 already passed its synthetic-fixture gate (44/44 tests, E2 evidence; initial validated baseline was 43). Next executable units keep canonical numbering: POC-003 (PapyrusCompiler dry-invoke) and POC-004 (allowlisted xEdit validator). Isolated-worker IPC work continues under ADR-002 / POC-IPC identifiers, not POC-003.",
+    "ADR-001 (hybrid headless-first) is ACCEPTED as of 2026-08-25; acceptance covers the architecture direction only, not any implementation. POC-002 already passed its synthetic-fixture gate (44/44 tests, E2 evidence; initial validated baseline was 43). Next architectural unit: ADR-002 + POC-IPC identifiers for isolated-worker IPC. Executable proofs keep canonical numbering: POC-003 (PapyrusCompiler dry-invoke) and POC-004 (allowlisted xEdit validator), both NO VERIFICADO.",
 };

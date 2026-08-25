@@ -68,7 +68,7 @@ export default async function HomePage() {
         </section>
         <section className="panel">
           <p className="kicker">Where we are</p>
-          <h2 className="mt-2 text-3xl">POC-002 PASS · ADR-001 PROPOSED</h2>
+          <h2 className="mt-2 text-3xl">POC-002 PASS · ADR-001 ACCEPTED</h2>
           <p className="text-[var(--muted)]">{verdict?.nextStep}</p>
           <Link href="/experiments" className="mt-4 inline-block text-[var(--copper-2)]">
             Open experiment board →
