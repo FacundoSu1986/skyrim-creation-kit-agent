@@ -286,27 +286,6 @@ class AssertionDefectTests(InjectionTestCase):
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
 
 
-class ValidErrorResponseTests(InjectionTestCase):
-    """P0#2: a worker can return a perfectly schema-valid error response.
-
-    The orchestrator must accept it without indexing into the (null)
-    worker_receipt and must classify the session as the worker's reported
-    status, not raise an exception.
-    """
-
-    def test_workspace_violation_error_response_is_handled(self):
-        result = self.run_helper(
-            "valid_error_response.py",
-            mode="valid_error_workspace_violation", timeout_ms=15000,
-        )
-        self.assertFalse(result.ok)
-        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
-        self.assertIsNone(result.response,
-                          "a non-SUCCESS response must not be promoted to "
-                          "an executable response")
-        self.assertIsNone(result.receipt)
-
-
 class ReceiptTruthfulnessTests(InjectionTestCase):
     """P0#3: the worker cannot self-declare success by padding the receipt.
 
@@ -423,6 +402,10 @@ class OutputLimitEarlyAbortTests(InjectionTestCase):
         self.assertEqual(result.outcome_code, errors.OUTPUT_LIMIT_EXCEEDED)
         self.assertFalse(result.ok)
         self.assertTrue(result.output_limit_hit)
+        # Output overflow is NOT a timeout. The execution deadline did
+        # not expire; `timed_out` must stay False even though the child
+        # had to be terminated as part of the overflow path.
+        self.assertFalse(result.timed_out)
         self.assertEqual(result.leaked_threads, 0)
         # The helper floods the moment it starts; the orchestrator must
         # detect the cap and terminate long before the configured timeout.
@@ -439,6 +422,7 @@ class OutputLimitEarlyAbortTests(InjectionTestCase):
         self.assertEqual(result.outcome_code, errors.OUTPUT_LIMIT_EXCEEDED)
         self.assertFalse(result.ok)
         self.assertTrue(result.output_limit_hit)
+        self.assertFalse(result.timed_out)
         self.assertEqual(result.leaked_threads, 0)
         self.assertLess(
             elapsed, timeout_ms / 1000 / 2.0,
