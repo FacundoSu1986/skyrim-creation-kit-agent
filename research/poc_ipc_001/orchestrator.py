@@ -407,12 +407,22 @@ class IPCOrchestrator:
         pump_err.start()
         writer.start()
 
-        # (10) Read/wait strictly under the same deadline. A stream that
-        # exceeds its cap marks output_limit_hit immediately; we then stop
-        # the wait loop and terminate the child without waiting for threads
-        # or the deadline — the worker is misbehaving and must not be given
-        # more time to run.
+        # (10) Read/wait strictly under the execution deadline. The wait
+        # loop exits for exactly three reasons, each tagged with a single
+        # boolean:
+        #   - execution deadline expired                 -> timed_out = True
+        #   - a stream exceeded its cap (overflow)       -> output_limit_hit
+        #   - all I/O threads finished naturally          -> keep waiting for
+        #                                                    the child
+        # In particular, "the child is still alive but threads finished" is
+        # NOT, on its own, a reason to terminate. The child is given the
+        # remainder of the execution deadline to exit on its own. This
+        # matters on Windows where `proc.poll()` can transiently return None
+        # after the worker has flushed stdout but before the kernel marks
+        # the process exited; killing it then would convert a clean
+        # worker-returned Response into a fake PROCESS_TIMEOUT.
         timed_out = False
+        result.output_limit_hit = False
         while True:
             now = time.monotonic()
             if now >= deadline:
@@ -426,24 +436,31 @@ class IPCOrchestrator:
                 and pump_out.is_alive() is False
                 and pump_err.is_alive() is False
             ):
+                # I/O drained; wait for the child to exit naturally under
+                # the remaining execution deadline.
                 break
             time.sleep(min(0.01, max(0.0, deadline - now)))
 
-        if not timed_out and proc.poll() is None and not result.output_limit_hit:
-            if time.monotonic() >= deadline:
-                timed_out = True
-
-        if result.output_limit_hit or timed_out or proc.poll() is None:
-            # Either a stream cap was hit, the deadline expired, or the
-            # child is still alive past the deadline: fail-closed termination.
+        # Three orthogonal decision branches, evaluated in priority order.
+        if result.output_limit_hit:
+            # Stream cap was hit. The child is misbehaving; terminate now.
+            # timed_out stays False: the deadline did not expire.
             self._terminate(proc)
-            timed_out = True
+        elif timed_out:
+            # Execution deadline expired with the child still alive.
+            self._terminate(proc)
         else:
+            # All I/O threads finished, output cap not hit, and the deadline
+            # has not expired. Give the child the remaining budget to exit
+            # naturally. We do NOT call _terminate() on `proc.poll() is None`
+            # alone — that race would spuriously convert clean worker
+            # returns into PROCESS_TIMEOUT.
+            remaining = max(0.001, deadline - time.monotonic())
             try:
-                proc.wait(timeout=max(0.001, deadline - time.monotonic()))
+                proc.wait(timeout=remaining)
             except subprocess.TimeoutExpired:
-                self._terminate(proc)
                 timed_out = True
+                self._terminate(proc)
 
         # Finite joins; anything left is counted and reported honestly.
         for thread in (writer, pump_out, pump_err):
@@ -462,6 +479,8 @@ class IPCOrchestrator:
         except subprocess.TimeoutExpired:
             pass
 
+        # `timed_out` reflects ONLY execution-deadline expiry. Output
+        # overflow uses `output_limit_hit` and is a different outcome.
         result.timed_out = timed_out
         result.exit_code = proc.returncode
         result.stdout_bytes = b"".join(out_sink)[: protocol.MAX_STDOUT_BYTES]
