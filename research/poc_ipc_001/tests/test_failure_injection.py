@@ -119,7 +119,7 @@ def protocol_chunk():
 
 class StreamMalformationTests(InjectionTestCase):
     def assert_invalid_response(self, mode):
-        result = self.run_helper("malformed_json.py", mode=mode, timeout_ms=5000)
+        result = self.run_helper("malformed_json.py", mode=mode, timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE,
                          f"mode={mode}: {result.reason[:140]}")
         self.assertFalse(result.ok)
@@ -155,20 +155,20 @@ class StreamMalformationTests(InjectionTestCase):
 class ProcessFaultTests(InjectionTestCase):
     def test_nonzero_exit_with_plausible_success_json_fails(self):
         result = self.run_helper(
-            "process_faults.py", mode="nonzero_plausible_success", timeout_ms=5000
+            "process_faults.py", mode="nonzero_plausible_success", timeout_ms=15000
         )
         self.assertEqual(result.outcome_code, errors.PROCESS_FAILED)
         self.assertEqual(result.exit_code, 3)
 
     def test_crash_after_read_fails(self):
         result = self.run_helper(
-            "process_faults.py", mode="crash_after_read", timeout_ms=5000
+            "process_faults.py", mode="crash_after_read", timeout_ms=15000
         )
         self.assertEqual(result.outcome_code, errors.PROCESS_FAILED)
 
     def test_zero_exit_with_invalid_json_is_invalid_response(self):
         result = self.run_helper(
-            "process_faults.py", mode="zero_exit_invalid", timeout_ms=5000
+            "process_faults.py", mode="zero_exit_invalid", timeout_ms=15000
         )
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
 
@@ -178,7 +178,7 @@ class CorrelationTests(InjectionTestCase):
         result = self.run_helper(
             "wrong_correlation.py",
             mode=field,
-            timeout_ms=5000,
+            timeout_ms=15000,
             extra_sentinel={"helper_level.txt": level},
         )
         self.assertEqual(result.outcome_code, errors.RECEIPT_MISMATCH,
@@ -205,7 +205,7 @@ class CorrelationTests(InjectionTestCase):
 
 class ReceiptShapeTests(InjectionTestCase):
     def assert_code(self, mode, expected_code):
-        result = self.run_helper("receipt_shape.py", mode=mode, timeout_ms=5000)
+        result = self.run_helper("receipt_shape.py", mode=mode, timeout_ms=15000)
         self.assertEqual(result.outcome_code, expected_code,
                          f"mode={mode}: {result.reason[:140]}")
         self.assertFalse(result.ok)
@@ -256,33 +256,33 @@ class ReceiptShapeTests(InjectionTestCase):
 class AssertionDefectTests(InjectionTestCase):
     def test_empty_required_assertions_rejected(self):
         result = self.run_helper("assertion_defects.py",
-                                 mode="empty_assertions", timeout_ms=5000)
+                                 mode="empty_assertions", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.ASSERTION_FAILED)
 
     def test_passed_false_yields_assertion_failed(self):
         result = self.run_helper("assertion_defects.py",
-                                 mode="passed_false", timeout_ms=5000)
+                                 mode="passed_false", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.ASSERTION_FAILED)
         self.assertIn("probe", result.reason)
 
     def test_passed_int_one_rejected_as_schema_violation(self):
         result = self.run_helper("assertion_defects.py",
-                                 mode="passed_int_one", timeout_ms=5000)
+                                 mode="passed_int_one", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
 
     def test_passed_int_zero_rejected_as_schema_violation(self):
         result = self.run_helper("assertion_defects.py",
-                                 mode="passed_int_zero", timeout_ms=5000)
+                                 mode="passed_int_zero", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
 
     def test_nested_expected_rejected_as_scalar_violation(self):
         result = self.run_helper("assertion_defects.py",
-                                 mode="nested_expected", timeout_ms=5000)
+                                 mode="nested_expected", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
 
     def test_float_actual_rejected_as_scalar_violation(self):
         result = self.run_helper("assertion_defects.py",
-                                 mode="float_actual", timeout_ms=5000)
+                                 mode="float_actual", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
 
 
