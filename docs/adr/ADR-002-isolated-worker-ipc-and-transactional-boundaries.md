@@ -121,21 +121,28 @@ Rules:
 The original ADR text read "child closes stdin early ⇒ `PIPE_WRITE_FAILED`"
 as a single bullet. Empirically (POC-IPC-001 / README note) this collapses
 deterministically into two distinct cases for sub-buffer payloads where the
-kernel accepts the parent's full write before observing the child's exit:
+kernel accepts the parent's full write before the child exits. What the
+parent can actually observe is the **write outcome** on the kernel side,
+not what the child did with the bytes:
 
 - The OS **rejects the write** with `BrokenPipeError`, returns a partial
   write, or surfaces `ERROR_BROKEN_PIPE` (Windows) — observed during
-  mid-delivery — ⇒ **`PIPE_WRITE_FAILED`**.
-- The OS **accepts the full request into the pipe buffer** before the child
-  exits, the child exits 0 with empty stdout — write success is unobservable
-  ⇒ **`INVALID_RESPONSE`**.
+  mid-delivery — ⇒ **`PIPE_WRITE_FAILED`**. (The parent demonstrably
+  could not deliver the full request.)
+- The OS **accepts the complete request** into the pipe buffer (no
+  rejection, no partial write, no broken-pipe signal), the child
+  subsequently exits with status 0, and there is no parseable Response
+  on stdout ⇒ **`INVALID_RESPONSE`**. (Delivery succeeded at the OS
+  level; the child simply did not produce a valid Response.)
 
-`PIPE_WRITE_FAILED` therefore means *the parent demonstrably could not
-deliver the request*. The combination "OS accepted the write + child exited
-without producing a parseable response" is **`INVALID_RESPONSE`**, not a
-pipe failure. This amendment is a clarification of intent, not a behavior
-change: the orchestrator already classifies these deterministically as
-fail-closed; the table now matches reality.
+`PIPE_WRITE_FAILED` is therefore reserved for **observable delivery
+failure**. "Write completed at the OS + child exits 0 + no parseable
+Response" is **`INVALID_RESPONSE`**, not a pipe failure. This amendment
+is a clarification of intent, not a behavior change: the orchestrator
+already classifies these deterministically as fail-closed; the table
+now matches reality. The protocol deliberately does not attempt to
+prove that the child actually read the bytes; v1 has no consumption
+ack, by design.
 
 ## Process and transport model
 
@@ -364,7 +371,7 @@ Values are constants proposed for POC scale; changing them later changes this AD
 - The request is fully serialized and size-checked against `MAX_REQUEST_BYTES` **before spawn**; the writer transmits exactly that buffer and nothing more, then closes stdin.
 - The writer is deadline-aware: each write attempt checks remaining budget; on expiry it stops, and the timeout path runs.
 - It never blocks indefinitely: POSIX uses non-blocking fds / poll-based write loops; Windows uses a bounded writer thread that respects the deadline remainder and is joined with a finite wait — a thread must never outlive the session. Windows thread mechanics are **design decision — NO VERIFICADO** until POC-IPC-001 demonstrates them.
-- `BrokenPipeError` / partial delivery / child-closed-stdin-early map deterministically to `PIPE_WRITE_FAILED` (see taxonomy). A worker that simply never consumes stdin is killed by the deadline as `PROCESS_TIMEOUT` — controlled failure, never a hang.
+- `BrokenPipeError` / partial delivery / child-closed-stdin-early map deterministically to `PIPE_WRITE_FAILED` (see taxonomy). A worker that never reads from stdin (or reads too slowly) is killed by the deadline as `PROCESS_TIMEOUT` — controlled failure, never a hang.
 
 **Readers (stdout/stderr).**
 
@@ -464,7 +471,7 @@ Stable codes for tests and summaries. Emission point noted; both sides use the s
 Deterministic classification for pipe edge cases (no aesthetic codes beyond `PIPE_WRITE_FAILED`); cross-references D7a above:
 
 - OS-rejected / partial write / observed `BrokenPipeError` / `ERROR_BROKEN_PIPE` (Windows) during delivery → `PIPE_WRITE_FAILED`;
-- write accepted by the OS, child exits without consuming the request, exit 0 with no parseable response → `INVALID_RESPONSE` (see D7a);
+- OS accepted the complete write, child exits with status 0, no parseable Response on stdout → `INVALID_RESPONSE` (see D7a);
 - stdout hits EOF before a parseable response **and** exit code was nonzero → `PROCESS_FAILED` (exit gate dominates);
 - stdout hits EOF before a parseable response with exit code zero → `INVALID_RESPONSE`;
 - local OS errors raising around pipe machinery → `INTERNAL_ERROR` with cause recorded.
