@@ -254,6 +254,65 @@ class RequestSchemaUnitTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(code, errors.INVALID_OPERATION)
 
+    # --- Wire-schema adversarial coverage (P1 request_id provenance) ---
+    #
+    # The PUBLIC OperationCall API no longer accepts request_id or
+    # protocol_version from the caller — those fields are trusted-side
+    # wire fields. Their adversarial validation lives HERE, on the
+    # WireRequest that the orchestrator would otherwise hand to the
+    # worker. Coverage is preserved by exercising validate_request()
+    # directly with attacker-shaped WireRequests.
+
+    def test_invalid_uuid_malformed_rejected(self):
+        req = self.base_request()
+        req["request_id"] = "not-a-uuid"
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.INVALID_REQUEST)
+
+    def test_non_v4_uuid_rejected(self):
+        req = self.base_request()
+        req["request_id"] = "a0f0e0d0-1111-1222-8333-444455556666"
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.INVALID_REQUEST)
+
+    def test_uppercase_uuid_rejected(self):
+        import uuid as _uuid
+        req = self.base_request()
+        req["request_id"] = str(_uuid.uuid4()).upper()
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.INVALID_REQUEST)
+
+    def test_protocol_version_true_rejected(self):
+        req = self.base_request()
+        req["protocol_version"] = True
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.INVALID_REQUEST)
+
+    def test_protocol_version_float_rejected(self):
+        req = self.base_request()
+        req["protocol_version"] = 1.0
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.INVALID_REQUEST)
+
+    def test_protocol_version_string_rejected(self):
+        req = self.base_request()
+        req["protocol_version"] = "1"
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.INVALID_REQUEST)
+
+    def test_unsupported_protocol_version_rejected(self):
+        req = self.base_request()
+        req["protocol_version"] = 2
+        ok, code, _ = validate_request(req)
+        self.assertFalse(ok)
+        self.assertEqual(code, errors.UNSUPPORTED_PROTOCOL_VERSION)
+
 
 if __name__ == "__main__":
     unittest.main()
