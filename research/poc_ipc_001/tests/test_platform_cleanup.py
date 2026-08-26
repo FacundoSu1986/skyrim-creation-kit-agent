@@ -79,8 +79,13 @@ class DirectChildTerminationTests(unittest.TestCase):
 
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         STILL_ACTIVE = 259
+        # `OpenProcess` errors that are consistent with a reaped (no longer
+        # active) PID we cannot otherwise query. ERROR_ACCESS_DENIED is
+        # intentionally NOT in this set: per Microsoft Learn, a live
+        # protected process (e.g. System / CSRSS) can also surface
+        # ERROR_ACCESS_DENIED on `OpenProcess`, so accepting that error
+        # would let a still-alive process pass the assertion.
         ERROR_INVALID_PARAMETER = 87
-        ERROR_ACCESS_DENIED = 5
         ERROR_NOT_FOUND = 1168
 
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -98,21 +103,16 @@ class DirectChildTerminationTests(unittest.TestCase):
         handle = kernel32.OpenProcess(
             PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid),
         )
+        if not handle:
+            err = ctypes.get_last_error()
+            self.assertIn(
+                err,
+                {ERROR_INVALID_PARAMETER, ERROR_NOT_FOUND},
+                f"OpenProcess on pid {pid} failed with unexpected error {err}; "
+                f"the process may still be alive (and possibly protected)",
+            )
+            return
         try:
-            if not handle:
-                # Access denied / invalid parameter / not found is the expected
-                # shape for a process that has been reaped and whose handle
-                # table entry is gone or restricted. None of those errors
-                # correspond to a still-alive process.
-                err = ctypes.get_last_error()
-                self.assertIn(
-                    err,
-                    {ERROR_INVALID_PARAMETER, ERROR_ACCESS_DENIED,
-                     ERROR_NOT_FOUND},
-                    f"OpenProcess failed with unexpected error {err}; "
-                    f"child pid {pid} may still be alive",
-                )
-                return
             code = wintypes.DWORD(0)
             self.assertTrue(
                 kernel32.GetExitCodeProcess(handle, ctypes.byref(code)),
@@ -124,8 +124,7 @@ class DirectChildTerminationTests(unittest.TestCase):
                 f"the child was not terminated",
             )
         finally:
-            if handle:
-                kernel32.CloseHandle(handle)
+            kernel32.CloseHandle(handle)
 
 
 @unittest.skipUnless(IS_POSIX, "process-group cleanup is POSIX-specific")
