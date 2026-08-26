@@ -123,6 +123,49 @@ elif mode == "error_code_mismatch":
         "PROCESS_FAILED", None,
         {"code": "INVALID_RESPONSE", "message": "mismatch probe"},
     )
+elif mode == "nonempty_outputs_readonly":
+    # Read-only operation, but the receipt claims a non-empty outputs list.
+    # The orchestrator must reject this with WORKSPACE_VIOLATION because
+    # the truthfulness invariant is exactly outputs == [] for read-only.
+    doc = response(
+        "SUCCESS",
+        receipt(outputs=[{"path": "candidates/forged.txt", "sha256": GOOD_SHA}]),
+        None,
+    )
+elif mode == "extra_input_ref":
+    # Receipt claims the one expected input PLUS an extra fabricated ref.
+    # The truthfulness invariant is exactly len(inputs) == 1 and a single
+    # match against the orchestrator-provisioned SHA.
+    doc = response(
+        "SUCCESS",
+        receipt(inputs=[
+            {"path": "input/fixture.txt", "sha256": GOOD_SHA},
+            {"path": "input/forged.txt", "sha256": GOOD_SHA},
+        ]),
+        None,
+    )
+elif mode == "missing_input_ref":
+    # The receipt has no inputs at all. Truthfulness requires exactly one.
+    doc = response("SUCCESS", receipt(inputs=[]), None)
+elif mode == "wrong_input_path":
+    # The receipt names an input that is not the one the orchestrator
+    # provisioned. The path token is workspace-relative-canonical and
+    # well-formed, so the schema accepts it; the orchestrator must
+    # reject it as a workspace-truthfulness violation.
+    doc = response(
+        "SUCCESS",
+        receipt(inputs=[{"path": "input/other.txt", "sha256": GOOD_SHA}]),
+        None,
+    )
+elif mode == "wrong_input_sha":
+    # The receipt names the right path but a forged sha256. The schema
+    # accepts the hash (it is a valid 64-char lowercase hex), but the
+    # orchestrator's trusted recomputation rejects it.
+    doc = response(
+        "SUCCESS",
+        receipt(inputs=[{"path": "input/fixture.txt", "sha256": "b" * 64}]),
+        None,
+    )
 else:
     raise SystemExit(f"unknown mode {mode}")
 

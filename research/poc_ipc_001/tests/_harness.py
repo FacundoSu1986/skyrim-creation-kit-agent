@@ -52,7 +52,7 @@ def run_ok(ws, orch, **overrides):
         "parameters": {"input_name": FIXTURE_NAME},
     }
     request.update(overrides)
-    return orch.execute(request, ws)
+    return orch.execute(request)
 
 
 def expected_fixture_sha() -> str:

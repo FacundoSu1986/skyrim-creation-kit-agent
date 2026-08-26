@@ -31,7 +31,6 @@ class HangTimeoutTests(unittest.TestCase):
              "operation": "INSPECT_SYNTHETIC_INPUT",
              "parameters": dict(params),
              "timeout_ms": DEADLINE_MS},
-            ws,
         )
         elapsed = time.monotonic() - started
         self.assertEqual(result.outcome_code, errors.PROCESS_TIMEOUT)
@@ -49,7 +48,6 @@ class HangTimeoutTests(unittest.TestCase):
              "operation": "INSPECT_SYNTHETIC_INPUT",
              "parameters": dict(params),
              "timeout_ms": DEADLINE_MS},
-            ws,
         )
         self.assertEqual(result.leaked_threads, 0,
                          "deadline-polled pumps/writer must always exit")
@@ -65,13 +63,69 @@ class DirectChildTerminationTests(unittest.TestCase):
              "operation": "INSPECT_SYNTHETIC_INPUT",
              "parameters": dict(params),
              "timeout_ms": DEADLINE_MS},
-            ws,
         )
         self.assertEqual(result.outcome_code, errors.PROCESS_TIMEOUT)
         self.assertIsNotNone(result.child_pid)
+        # The kernel has reaped the child: the OS-level handle proves it.
         if IS_POSIX:
             with self.assertRaises(ProcessLookupError):
                 os.kill(result.child_pid, 0)
+        else:
+            self._assert_windows_child_reaped(result.child_pid)
+
+    def _assert_windows_child_reaped(self, pid):
+        import ctypes
+        from ctypes import wintypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        ERROR_INVALID_PARAMETER = 87
+        ERROR_ACCESS_DENIED = 5
+        ERROR_NOT_FOUND = 1168
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [
+            wintypes.DWORD, wintypes.BOOL, wintypes.DWORD,
+        ]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [
+            wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid),
+        )
+        try:
+            if not handle:
+                # Access denied / invalid parameter / not found is the expected
+                # shape for a process that has been reaped and whose handle
+                # table entry is gone or restricted. None of those errors
+                # correspond to a still-alive process.
+                err = ctypes.get_last_error()
+                self.assertIn(
+                    err,
+                    {ERROR_INVALID_PARAMETER, ERROR_ACCESS_DENIED,
+                     ERROR_NOT_FOUND},
+                    f"OpenProcess failed with unexpected error {err}; "
+                    f"child pid {pid} may still be alive",
+                )
+                return
+            code = wintypes.DWORD(0)
+            self.assertTrue(
+                kernel32.GetExitCodeProcess(handle, ctypes.byref(code)),
+                "GetExitCodeProcess must succeed on the reaped child",
+            )
+            self.assertNotEqual(
+                int(code.value), STILL_ACTIVE,
+                f"GetExitCodeProcess reported STILL_ACTIVE for pid {pid}; "
+                f"the child was not terminated",
+            )
+        finally:
+            if handle:
+                kernel32.CloseHandle(handle)
 
 
 @unittest.skipUnless(IS_POSIX, "process-group cleanup is POSIX-specific")
@@ -85,7 +139,6 @@ class PosixProcessGroupTests(unittest.TestCase):
              "operation": "INSPECT_SYNTHETIC_INPUT",
              "parameters": dict(params),
              "timeout_ms": DEADLINE_MS},
-            ws,
         )
         self.assertEqual(result.outcome_code, errors.PROCESS_TIMEOUT)
         # The whole group is gone: signalling it must fail.
@@ -106,7 +159,6 @@ class DescendantHoldingPipeTests(unittest.TestCase):
              "operation": "INSPECT_SYNTHETIC_INPUT",
              "parameters": dict(params),
              "timeout_ms": DEADLINE_MS},
-            ws,
         )
         elapsed = time.monotonic() - started
         self.assertEqual(result.outcome_code, errors.PROCESS_TIMEOUT)
