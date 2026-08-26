@@ -27,6 +27,7 @@ import errors
 import protocol
 import schemas
 import synthetic_operation
+from workspace import JobWorkspace
 
 IO_POLL_SLICE_S = 0.02      # pump wake-up cadence (no busy loop)
 TERMINATE_GRACE_S = 0.5     # SIGTERM grace before SIGKILL (POSIX)
@@ -213,16 +214,80 @@ class IPCOrchestrator:
 
     # -- public entry ------------------------------------------------------
 
-    def execute(self, caller_request: dict, workspace) -> SessionResult:
-        """Run one one-shot IPC session. Fail-closed end to end."""
+    # OperationCall: caller-supplied data with NO trusted-side fields.
+    # Any attempt to inject a reserved field is a fail-closed pre-spawn
+    # INVALID_REQUEST: we never accept caller-supplied request_id,
+    # protocol_version, or any host/workspace path. The orchestrator
+    # constructs the WireRequest from these fields plus trusted-side values.
+    _OPERATION_CALL_REQUIRED = ("job_id", "operation", "parameters")
+    _OPERATION_CALL_OPTIONAL = ("timeout_ms",)
+    _OPERATION_CALL_RESERVED = frozenset({
+        "request_id",
+        "protocol_version",
+        "trusted_jobs_root",
+        "workspace",
+        "base_dir",
+        "cwd",
+        "job_root",
+        "worker_receipt",  # never part of a request
+    })
+
+    def execute(self, operation_call: dict) -> SessionResult:
+        """Run one one-shot IPC session. Fail-closed end to end.
+
+        Public API takes a closed-world OperationCall. The orchestrator
+        builds the WireRequest by adding protocol_version and a fresh
+        trusted-side request_id. The JobWorkspace is derived from
+        ``self.trusted_jobs_root / "jobs" / <job_id>``.
+
+        No host/workspace root, no path component, and no trusted-side wire
+        field may be supplied by the caller (D1, D13, D14 of ADR-002).
+        """
         result = SessionResult(verdict="FAIL", outcome_code=errors.INTERNAL_ERROR,
                                reason="session did not run")
         started_mono = time.monotonic()
 
-        # (2) Fill trusted-side fields, then FULL pre-spawn validation.
-        request = dict(caller_request)
-        request.setdefault("protocol_version", protocol.PROTOCOL_VERSION)
-        request.setdefault("request_id", protocol.new_request_id())
+        # (1) Closed-world OperationCall validation: required + optional keys
+        # only; reserved fields are an INVALID_REQUEST pre-spawn.
+        if not isinstance(operation_call, dict):
+            return self._prespawn_fail(
+                result, started_mono, errors.INVALID_REQUEST,
+                "operation_call must be an object",
+            )
+        unknown = set(operation_call) - (
+            set(self._OPERATION_CALL_REQUIRED) |
+            set(self._OPERATION_CALL_OPTIONAL)
+        )
+        if unknown:
+            reserved_hit = unknown & self._OPERATION_CALL_RESERVED
+            if reserved_hit:
+                return self._prespawn_fail(
+                    result, started_mono, errors.INVALID_REQUEST,
+                    f"reserved field(s) are not part of OperationCall: "
+                    f"{sorted(reserved_hit)}",
+                )
+            return self._prespawn_fail(
+                result, started_mono, errors.INVALID_REQUEST,
+                f"unknown OperationCall field(s): {sorted(unknown)}",
+            )
+        missing = set(self._OPERATION_CALL_REQUIRED) - set(operation_call)
+        if missing:
+            return self._prespawn_fail(
+                result, started_mono, errors.INVALID_REQUEST,
+                f"missing OperationCall field(s): {sorted(missing)}",
+            )
+
+        # (2) Build the WireRequest. protocol_version and request_id are
+        # ALWAYS trusted-side; the caller cannot influence them.
+        request = {
+            "protocol_version": protocol.PROTOCOL_VERSION,
+            "request_id": protocol.new_request_id(),
+            "job_id": operation_call["job_id"],
+            "operation": operation_call["operation"],
+            "parameters": operation_call["parameters"],
+        }
+        if "timeout_ms" in operation_call:
+            request["timeout_ms"] = operation_call["timeout_ms"]
 
         ok, code, detail = schemas.validate_request(request)
         if not ok:
@@ -235,7 +300,10 @@ class IPCOrchestrator:
         # size gate that would have failed later anyway.)
         payload = protocol.strict_json_dumps(request)
         if len(payload) > protocol.MAX_REQUEST_BYTES:
-            return self._presawn_limit_fail(result, started_mono)
+            return self._prespawn_fail(result, started_mono,
+                                       errors.REQUEST_LIMIT_EXCEEDED,
+                                       f"serialized request exceeds MAX_REQUEST_BYTES "
+                                       f"({protocol.MAX_REQUEST_BYTES})")
 
         # (3) Identifier-specific codes are already normative; policy next.
         capability = self.registry.status(request["operation"])
@@ -257,8 +325,12 @@ class IPCOrchestrator:
                 result, started_mono, errors.INVALID_REQUEST, detail
             )
 
-        # (4) Trusted-side workspace derivation.
+        # (4) Trusted-side workspace derivation. The job directory is
+        # resolved strictly from self.trusted_jobs_root + job_id; a caller
+        # cannot influence which job_dir the worker sees. The JobWorkspace
+        # constructor itself enforces safe-name and post-resolve containment.
         try:
+            workspace = JobWorkspace(self.trusted_jobs_root, request["job_id"])
             workspace.ensure_areas()
         except Exception as exc:  # noqa: BLE001 — boundary, fail-closed
             return self._prespawn_fail(
@@ -335,10 +407,19 @@ class IPCOrchestrator:
         pump_err.start()
         writer.start()
 
-        # (10) Read/wait strictly under the same deadline.
+        # (10) Read/wait strictly under the same deadline. A stream that
+        # exceeds its cap marks output_limit_hit immediately; we then stop
+        # the wait loop and terminate the child without waiting for threads
+        # or the deadline — the worker is misbehaving and must not be given
+        # more time to run.
+        timed_out = False
         while True:
             now = time.monotonic()
             if now >= deadline:
+                timed_out = True
+                break
+            if out_flags.exceeded or err_flags.exceeded:
+                result.output_limit_hit = True
                 break
             if (
                 writer.is_alive() is False
@@ -348,12 +429,13 @@ class IPCOrchestrator:
                 break
             time.sleep(min(0.01, max(0.0, deadline - now)))
 
-        timed_out = time.monotonic() >= deadline and proc.poll() is None
-        if out_flags.exceeded or err_flags.exceeded:
-            result.output_limit_hit = True
+        if not timed_out and proc.poll() is None and not result.output_limit_hit:
+            if time.monotonic() >= deadline:
+                timed_out = True
 
-        if timed_out or proc.poll() is None:
-            # Deadline reached with a live child: fail-closed termination.
+        if result.output_limit_hit or timed_out or proc.poll() is None:
+            # Either a stream cap was hit, the deadline expired, or the
+            # child is still alive past the deadline: fail-closed termination.
             self._terminate(proc)
             timed_out = True
         else:
@@ -427,19 +509,35 @@ class IPCOrchestrator:
         if not ok:
             return self._fail(result, errors.INVALID_RESPONSE, why[:512])
 
-        # Six-way correlation.
-        for source_name, source in (("response", response),
-                                    ("receipt", response["worker_receipt"])):
-            for field in ("request_id", "job_id", "operation"):
-                if source[field] != request[field]:
-                    return self._fail(
-                        result, errors.RECEIPT_MISMATCH,
-                        f"{source_name}.{field} does not correlate to request",
-                    )
+        # Persist the validated Response on the result regardless of outcome
+        # — it is the only evidence the worker emitted for this session.
+        result.response = response
+
+        # Response-level correlation (independent of receipt). On a non-SUCCESS
+        # response the receipt is required by the schema to be null; we never
+        # index into it. The status value itself is the verdict carrier.
+        for field in ("request_id", "job_id", "operation"):
+            if response[field] != request[field]:
+                return self._fail(
+                    result, errors.RECEIPT_MISMATCH,
+                    f"response.{field} does not correlate to request",
+                )
+        if response["status"] != protocol.STATUS_SUCCESS:
+            return self._fail(result, response["status"],
+                              response.get("error", {}).get("message", "")
+                              or "worker returned a non-SUCCESS status")
+
+        # SUCCESS path: receipt must be present, schema-valid, and correlated.
+        receipt = response["worker_receipt"]
+        for field in ("request_id", "job_id", "operation"):
+            if receipt[field] != request[field]:
+                return self._fail(
+                    result, errors.RECEIPT_MISMATCH,
+                    f"receipt.{field} does not correlate to request",
+                )
 
         # Non-vacuous assertions, all passing (contract items 8-9 precede
         # workspace invariants in the deterministic classification order).
-        receipt = response["worker_receipt"]
         assertions = receipt["worker_assertions"]
         if not assertions:
             return self._fail(result, errors.ASSERTION_FAILED,
@@ -449,22 +547,37 @@ class IPCOrchestrator:
             return self._fail(result, errors.ASSERTION_FAILED,
                               f"failing assertions: {failing}")
 
-        # Workspace invariants for the read-only operation.
+        # Workspace invariants for the read-only operation. The receipt is
+        # the worker's claim; the orchestrator independently re-derives the
+        # truth from the filesystem and re-validates the receipt against it.
+        # Read-only means: outputs MUST be empty (the worker cannot promote
+        # anything), and inputs MUST be exactly the one file the orchestrator
+        # provisioned, with its exact SHA-256. Any extra/missing ref is
+        # a workspace-truthfulness failure (a worker cannot pad receipts with
+        # references to files it never opened).
         if not workspace.candidates_empty():
             return self._fail(result, errors.WORKSPACE_VIOLATION,
                               "read-only operation produced candidates")
-        for ref in receipt["outputs"]:
-            if not ref["path"].replace("\\", "/").startswith("candidates/"):
-                return self._fail(
-                    result, errors.WORKSPACE_VIOLATION,
-                    f"OutputRef.path outside candidates/: {ref['path']!r}",
-                )
-        provisioned = workspace.input_sha256(request["parameters"]["input_name"])
-        refs = {ref["path"]: ref["sha256"] for ref in receipt["inputs"]}
-        expected_ref = f"input/{request['parameters']['input_name']}"
-        if refs.get(expected_ref) != provisioned:
-            return self._fail(result, errors.WORKSPACE_VIOLATION,
-                              "receipt input hash does not match provisioned file")
+        if receipt["outputs"] != []:
+            return self._fail(
+                result, errors.WORKSPACE_VIOLATION,
+                f"read-only operation must declare outputs==[]; "
+                f"got {len(receipt['outputs'])} reference(s)",
+            )
+        expected_ref_path = f"input/{request['parameters']['input_name']}"
+        provisioned_sha = workspace.input_sha256(
+            request["parameters"]["input_name"]
+        )
+        inputs = receipt["inputs"]
+        if (len(inputs) != 1
+                or inputs[0].get("path") != expected_ref_path
+                or inputs[0].get("sha256") != provisioned_sha):
+            return self._fail(
+                result, errors.WORKSPACE_VIOLATION,
+                f"receipt.inputs must be exactly "
+                f"[{{'path': {expected_ref_path!r}, 'sha256': <provisioned>}}]; "
+                f"got len={len(inputs)}",
+            )
 
         # SUCCESS — computed, not declared.
         result.verdict = "PASS"
@@ -525,13 +638,6 @@ class IPCOrchestrator:
         result.spawn_count = 0
         result.duration_ms = int((time.monotonic() - started_mono) * 1000)
         return result
-
-    def _presawn_limit_fail(self, result, started_mono) -> SessionResult:
-        return self._prespawn_fail(
-            result, started_mono, errors.REQUEST_LIMIT_EXCEEDED,
-            f"serialized request exceeds MAX_REQUEST_BYTES "
-            f"({protocol.MAX_REQUEST_BYTES})",
-        )
 
     @staticmethod
     def _fail(result, code, reason) -> SessionResult:
