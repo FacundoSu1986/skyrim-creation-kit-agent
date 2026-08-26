@@ -42,15 +42,15 @@ class InjectionTestCase(unittest.TestCase):
             trusted_jobs_root=self.ws.trusted_root,
             registry=self.orch_registry(),
         )
-        request = {
+        call = {
             "job_id": self.ws.job_dir.name,
             "operation": "INSPECT_SYNTHETIC_INPUT",
             "parameters": dict(self.params),
         }
         if timeout_ms is not None:
-            request["timeout_ms"] = timeout_ms
+            call["timeout_ms"] = timeout_ms
         started = time.monotonic()
-        result = orch.execute(request, self.ws)
+        result = orch.execute(call)
         result.wall_elapsed = time.monotonic() - started
         return result
 
@@ -284,6 +284,166 @@ class AssertionDefectTests(InjectionTestCase):
         result = self.run_helper("assertion_defects.py",
                                  mode="float_actual", timeout_ms=15000)
         self.assertEqual(result.outcome_code, errors.INVALID_RESPONSE)
+
+
+class ValidErrorResponseTests(InjectionTestCase):
+    """P0#2: a worker can return a perfectly schema-valid error response.
+
+    The orchestrator must accept it without indexing into the (null)
+    worker_receipt and must classify the session as the worker's reported
+    status, not raise an exception.
+    """
+
+    def test_workspace_violation_error_response_is_handled(self):
+        result = self.run_helper(
+            "valid_error_response.py",
+            mode="valid_error_workspace_violation", timeout_ms=15000,
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIsNone(result.response,
+                          "a non-SUCCESS response must not be promoted to "
+                          "an executable response")
+        self.assertIsNone(result.receipt)
+
+
+class ReceiptTruthfulnessTests(InjectionTestCase):
+    """P0#3: the worker cannot self-declare success by padding the receipt.
+
+    The orchestrator independently re-derives workspace truth; for a
+    read-only operation the receipt must declare exactly one input (the
+    one the orchestrator provisioned) and no outputs.
+    """
+
+    def test_nonempty_outputs_in_readonly_receipt_rejected(self):
+        result = self.run_helper("receipt_shape.py",
+                                 mode="nonempty_outputs_readonly",
+                                 timeout_ms=15000)
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIn("outputs", result.reason)
+
+    def test_extra_input_ref_in_receipt_rejected(self):
+        result = self.run_helper("receipt_shape.py",
+                                 mode="extra_input_ref",
+                                 timeout_ms=15000)
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIn("inputs", result.reason)
+
+    def test_missing_input_ref_in_receipt_rejected(self):
+        result = self.run_helper("receipt_shape.py",
+                                 mode="missing_input_ref",
+                                 timeout_ms=15000)
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIn("inputs", result.reason)
+
+    def test_wrong_input_path_in_receipt_rejected(self):
+        result = self.run_helper("receipt_shape.py",
+                                 mode="wrong_input_path",
+                                 timeout_ms=15000)
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIn("inputs", result.reason)
+
+    def test_wrong_input_sha_in_receipt_rejected(self):
+        result = self.run_helper("receipt_shape.py",
+                                 mode="wrong_input_sha",
+                                 timeout_ms=15000)
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIn("inputs", result.reason)
+
+
+class ValidErrorResponseTests(InjectionTestCase):
+    """P0-2: a worker can return a perfectly schema-valid error Response.
+
+    The orchestrator must classify the session as the worker's reported
+    status, never index into response["worker_receipt"] (which is null
+    by schema), and never raise an exception. Response-level correlation
+    MUST still be enforced: an error Response with a wrong job_id is
+    RECEIPT_MISMATCH, not the worker's claimed status.
+    """
+
+    def test_workspace_violation_error_response_handled(self):
+        result = self.run_helper(
+            "valid_error_response.py",
+            mode="valid_error_workspace_violation", timeout_ms=15000,
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.verdict, "FAIL")
+        self.assertEqual(result.outcome_code, errors.WORKSPACE_VIOLATION)
+        self.assertIsNotNone(result.response,
+                             "schema-valid Response is preserved for evidence")
+        self.assertEqual(result.response["status"],
+                         errors.WORKSPACE_VIOLATION)
+        self.assertIsNone(result.response["worker_receipt"])
+        self.assertEqual(result.response["error"]["code"],
+                         errors.WORKSPACE_VIOLATION)
+        self.assertIsNone(result.receipt)
+        self.assertEqual(result.spawn_count, 1)
+
+    def test_invalid_operation_error_response_handled(self):
+        result = self.run_helper(
+            "valid_error_response.py",
+            mode="valid_error_invalid_operation", timeout_ms=15000,
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.outcome_code, errors.INVALID_OPERATION)
+        self.assertIsNotNone(result.response)
+        self.assertIsNone(result.receipt)
+
+    def test_error_response_with_wrong_job_id_is_receipt_mismatch(self):
+        """A schema-valid error Response that does not correlate to the
+        trusted request is RECEIPT_MISMATCH, not a PASS-graded error.
+        Defense against an adversarial worker that tries to borrow a
+        different job_id (for example, a previously successful one)."""
+        result = self.run_helper(
+            "valid_error_response.py",
+            mode="wrong_job_id",
+            extra_sentinel={"helper_wrong_job.txt": "1"},
+            timeout_ms=15000,
+        )
+        self.assertEqual(result.outcome_code, errors.RECEIPT_MISMATCH)
+        self.assertIn("job_id", result.reason)
+
+    def test_error_response_with_wrong_request_id_is_receipt_mismatch(self):
+        result = self.run_helper(
+            "valid_error_response.py",
+            mode="wrong_request_id",
+            timeout_ms=15000,
+        )
+        self.assertEqual(result.outcome_code, errors.RECEIPT_MISMATCH)
+
+
+class OutputLimitEarlyAbortTests(InjectionTestCase):
+    """P1 OUTPUT_LIMIT must abort immediately, not wait for the deadline."""
+
+    def test_stdout_flood_aborts_well_before_deadline(self):
+        timeout_ms = 8000
+        started = time.monotonic()
+        result = self.run_helper("spam_stdout.py", timeout_ms=timeout_ms)
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.outcome_code, errors.OUTPUT_LIMIT_EXCEEDED)
+        self.assertFalse(result.ok)
+        self.assertTrue(result.output_limit_hit)
+        self.assertEqual(result.leaked_threads, 0)
+        # The helper floods the moment it starts; the orchestrator must
+        # detect the cap and terminate long before the configured timeout.
+        self.assertLess(
+            elapsed, timeout_ms / 1000 / 2.0,
+            f"output_limit must trigger early termination; elapsed={elapsed:.3f}s",
+        )
+
+    def test_stderr_flood_aborts_well_before_deadline(self):
+        timeout_ms = 8000
+        started = time.monotonic()
+        result = self.run_helper("spam_stderr.py", timeout_ms=timeout_ms)
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.outcome_code, errors.OUTPUT_LIMIT_EXCEEDED)
+        self.assertFalse(result.ok)
+        self.assertTrue(result.output_limit_hit)
+        self.assertEqual(result.leaked_threads, 0)
+        self.assertLess(
+            elapsed, timeout_ms / 1000 / 2.0,
+            f"output_limit must trigger early termination; elapsed={elapsed:.3f}s",
+        )
 
 
 if __name__ == "__main__":
