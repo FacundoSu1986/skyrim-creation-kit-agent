@@ -79,23 +79,42 @@ class JobWorkspace:
     # -- evidence persistence (orchestrator-only writes) -------------------
 
     def persist_receipt(self, request_id: str, receipt_obj: dict) -> Path:
-        """Append-only, no-overwrite persistence of a VALIDATED receipt."""
-        dest = self.contained_path("receipts", f"{request_id}.json")
-        raw = Path(str(dest))
-        if raw.exists():
-            raise WorkspaceViolation(f"receipt already exists: {raw.name}")
+        """Append-only, no-overwrite persistence of a VALIDATED receipt.
+
+        The no-overwrite property is enforced atomically by the OS via
+        open(..., "x"), not by a check-then-write window. A second
+        persistence for the same request_id raises WorkspaceViolation
+        before any byte of the existing file is touched.
+        """
         import json
 
-        raw.write_text(json.dumps(receipt_obj, indent=2, sort_keys=True))
-        return raw
+        dest = self.contained_path("receipts", f"{request_id}.json")
+        try:
+            with open(dest, "x", encoding="utf-8") as handle:
+                handle.write(json.dumps(receipt_obj, indent=2, sort_keys=True))
+        except FileExistsError as exc:
+            raise WorkspaceViolation(
+                f"receipt already exists: {dest.name}"
+            ) from exc
+        return dest
 
     def persist_stderr_log(self, request_id: str, stderr_bytes: bytes) -> Path:
+        """Append-only, no-overwrite persistence of a worker stderr log.
+
+        The no-overwrite property is enforced atomically by the OS via
+        open(..., "xb"), not by a check-then-write window. A second
+        persistence for the same request_id raises WorkspaceViolation
+        before any byte of the existing file is touched.
+        """
         dest = self.contained_path("logs", f"{request_id}.stderr.log")
-        raw = Path(str(dest))
-        if raw.exists():
-            raise WorkspaceViolation(f"log already exists: {raw.name}")
-        raw.write_bytes(stderr_bytes)
-        return raw
+        try:
+            with open(dest, "xb") as handle:
+                handle.write(stderr_bytes)
+        except FileExistsError as exc:
+            raise WorkspaceViolation(
+                f"log already exists: {dest.name}"
+            ) from exc
+        return dest
 
     def candidates_empty(self) -> bool:
         candidates = self.areas["candidates"]

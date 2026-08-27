@@ -1,5 +1,6 @@
 """Workspace tests: containment, safe names, evidence persistence rules."""
 
+import hashlib
 import os
 import sys
 import tempfile
@@ -126,6 +127,63 @@ class EvidencePersistenceTests(unittest.TestCase):
 
     def test_candidates_empty_for_read_only_flow(self):
         self.assertTrue(self.ws.candidates_empty())
+
+    def test_receipt_no_overwrite_is_atomic_and_preserves_bytes(self):
+        """OS-level no-overwrite proof: a second persist never touches the
+        bytes of the first, even when the second call would have written
+        different content. This is the property that the previous
+        check-then-write (exists() -> write_text) implementation did NOT
+        guarantee under concurrency, because two threads could both pass
+        the exists() check and then race into write_text(), truncating the
+        first writer's bytes.
+
+        Persistence now uses open(..., "x") / O_CREAT|O_EXCL so the OS
+        itself refuses to create the file when it already exists. The
+        on-disk bytes of the first persist are therefore invariant across
+        any number of subsequent attempts.
+        """
+        first_payload = {"probe": "ORIGINAL", "marker": "A" * 4096}
+        first_path = self.ws.persist_receipt("req-atomic", first_payload)
+        expected_bytes = first_path.read_bytes()
+        expected_sha = hashlib.sha256(expected_bytes).hexdigest()
+
+        # Several subsequent attempts with different payloads must not
+        # change the on-disk bytes.
+        for attempt in range(5):
+            with self.assertRaises(WorkspaceViolation):
+                self.ws.persist_receipt(
+                    "req-atomic", {"probe": f"OVERWRITE-{attempt}"}
+                )
+            self.assertEqual(
+                first_path.read_bytes(), expected_bytes,
+                f"attempt {attempt}: on-disk bytes were altered",
+            )
+            self.assertEqual(
+                hashlib.sha256(first_path.read_bytes()).hexdigest(),
+                expected_sha,
+                f"attempt {attempt}: on-disk sha changed",
+            )
+
+    def test_stderr_log_no_overwrite_is_atomic_and_preserves_bytes(self):
+        """OS-level no-overwrite proof for the stderr log path."""
+        first_bytes = b"ORIGINAL-LOG-CONTENT\n" * 64
+        first_path = self.ws.persist_stderr_log("req-atomic-stderr", first_bytes)
+        expected_sha = hashlib.sha256(first_bytes).hexdigest()
+
+        for attempt in range(5):
+            with self.assertRaises(WorkspaceViolation):
+                self.ws.persist_stderr_log(
+                    "req-atomic-stderr", f"OVERWRITE-{attempt}".encode("ascii")
+                )
+            self.assertEqual(
+                first_path.read_bytes(), first_bytes,
+                f"attempt {attempt}: log bytes were altered",
+            )
+            self.assertEqual(
+                hashlib.sha256(first_path.read_bytes()).hexdigest(),
+                expected_sha,
+                f"attempt {attempt}: log sha changed",
+            )
 
 
 if __name__ == "__main__":
