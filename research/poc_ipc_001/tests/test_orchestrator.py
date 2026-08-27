@@ -135,9 +135,9 @@ class DualRootTrustedRootTests(unittest.TestCase):
         ws.provision_input(name, data)
 
     def test_worker_uses_orchestrator_root_not_caller(self):
-        # job_id was NOT created in either root, so the orchestrator
-        # creates it inside trusted_root on demand. The worker reads from
-        # that freshly-created job_dir, which is fully under trusted_root.
+        # setUp provisioned the SAME job_id in both roots with different
+        # bytes. The orchestrator is bound to trusted_root only, so the
+        # worker must read the trusted bytes and never the rogue bytes.
         call = {
             "job_id": self.job_id,
             "operation": "INSPECT_SYNTHETIC_INPUT",

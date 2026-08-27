@@ -90,8 +90,12 @@ class SymlinkJunctionEscapeTests(unittest.TestCase):
             _winapi.CreateJunction(str(outside_dir), str(junction))
         except OSError:
             self.skipTest("junction creation not permitted on this runner")
+        # Single-segment token: the safe-name grammar check passes, so the
+        # assertion depends on junction resolution itself, not on the
+        # grammar rejecting a separator. This is the actual junction-escape
+        # proof.
         with self.assertRaises(WorkspaceViolation):
-            self.ws.contained_path("input", "junction/outside.txt")
+            self.ws.contained_path("input", "junction")
 
     @unittest.skipUnless(os.name == "nt", "case collisions are Windows-specific")
     def test_case_collision_normalization_documented(self):

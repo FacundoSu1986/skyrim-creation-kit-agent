@@ -4,6 +4,12 @@ Reads the REAL request from stdin, echoes its identifiers faithfully at both
 levels (response + receipt), then corrupts EXACTLY ONE requested field at one
 level — a resulting rejection proves the orchestrator checks that precise leg.
 
+For level == "receipt", the response envelope is built from the *unmodified*
+receipt first; only the embedded receipt copy is then corrupted. This
+preserves the receipt-level correlation leg: the response keeps correct
+identifiers, the embedded receipt is what fails, and the orchestrator must
+specifically fail at the receipt-correlation loop (not the response loop).
+
 Mode/leg from sentinel files in <job-root>/temp/:
     helper_mode.txt  : field name (request_id | job_id | operation)
     helper_level.txt : response | receipt
@@ -28,7 +34,18 @@ level = level_file.read_text(encoding="ascii").strip() if level_file.exists() el
 raw = sys.stdin.buffer.read()
 request = json.loads(raw.decode("utf-8"))
 
-WRONG = "CORRUPTED-VALUE"
+# Use SCHEMA-VALID but REQUEST-MISMATCH values so the test exercises the
+# orchestrator's correlation gate (post-schema). A non-schema-valid value
+# would be caught by validate_response / validate_receipt as
+# INVALID_RESPONSE, never reaching correlation.
+WRONG_REQUEST_ID = "ffffffff-ffff-4fff-bfff-ffffffffffff"
+WRONG_JOB_ID = "JOB-CORRUPT-1234"
+WRONG_OPERATION = "CORRUPTED_OP"
+WRONG = {
+    "request_id": WRONG_REQUEST_ID,
+    "job_id": WRONG_JOB_ID,
+    "operation": WRONG_OPERATION,
+}[field]
 
 receipt = {
     "protocol_version": 1,
@@ -46,13 +63,18 @@ receipt = {
     ],
     "warnings": [],
 }
-if level == "receipt":
-    receipt[field] = WRONG
 
+# Build the response envelope from the *unmodified* receipt first so that
+# response-level correlation holds for level == "receipt" tests. Only after
+# the copy is made do we corrupt the embedded receipt — the orchestrator's
+# response-correlation gate then passes and the receipt-correlation gate
+# is the one that fires.
 response = dict(receipt)
 del response["worker_assertions"], response["warnings"], response["inputs"]
 del response["outputs"]
 response["status"] = "SUCCESS"
+if level == "receipt":
+    receipt[field] = WRONG
 response["worker_receipt"] = receipt
 response["error"] = None
 if level == "response":

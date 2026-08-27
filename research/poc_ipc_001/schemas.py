@@ -21,6 +21,7 @@ from protocol import (
     is_strict_bool,
     valid_scalar,
     validate_hash_format,
+    validate_job_id,
     validate_request_id,
 )
 
@@ -30,6 +31,25 @@ def _check_string(value, detail):
         return False, f"{detail}: not a string"
     if len(value.encode("utf-8")) > MAX_STRING_BYTES:
         return False, f"{detail}: string exceeds MAX_STRING_BYTES"
+    return True, ""
+
+
+def _check_identity_fields(obj, where: str):
+    """Closed-world identity validation, independent of request correlation.
+
+    Every Response and Receipt carries a (request_id, job_id, operation)
+    triple. Each of those is a separate identifier contract; validating
+    here prevents schema-invalid identities from ever reaching the
+    orchestrator's correlation gate. Schema validity is not the same as
+    request correlation.
+    """
+    if type(obj.get("request_id")) is not str or not validate_request_id(obj["request_id"]):
+        return False, f"{where}.request_id violates UUID v4 canonical form"
+    if type(obj.get("job_id")) is not str or not validate_job_id(obj["job_id"]):
+        return False, f"{where}.job_id violates its contract"
+    ok, why = _check_string(obj.get("operation"), f"{where}.operation")
+    if not ok:
+        return False, why
     return True, ""
 
 
@@ -215,6 +235,9 @@ def validate_receipt(obj):
     ok, why = _exact_keys(obj, RECEIPT_FIELDS, "receipt")
     if not ok:
         return False, why
+    ok, why = _check_identity_fields(obj, "receipt")
+    if not ok:
+        return False, why
     if obj["protocol_version"] != PROTOCOL_VERSION or not is_exact_int(
         obj["protocol_version"]
     ):
@@ -304,6 +327,9 @@ def validate_response(obj):
     if not isinstance(obj, dict):
         return False, "response is not an object"
     ok, why = _exact_keys(obj, RESPONSE_FIELDS, "response")
+    if not ok:
+        return False, why
+    ok, why = _check_identity_fields(obj, "response")
     if not ok:
         return False, why
 

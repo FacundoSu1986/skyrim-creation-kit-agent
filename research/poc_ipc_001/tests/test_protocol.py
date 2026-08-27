@@ -193,6 +193,200 @@ class TimeoutTests(unittest.TestCase):
             self.assertIs(protocol.validate_timeout_ms(bad), False)
 
 
+class WholeStringValidatorTests(unittest.TestCase):
+    """Regression tests for the whole-string validator contract.
+
+    Pattern.match() with a $ anchor accepts exactly one trailing newline
+    (Python regex behaviour), so any validator that uses match() is
+    vulnerable to e.g. 'JOB\\n' passing. All identifier/hash validators
+    must use fullmatch().
+    """
+
+    def test_job_id_trailing_newline_rejected(self):
+        self.assertFalse(protocol.validate_job_id("JOB\n"))
+
+    def test_job_id_trailing_crlf_rejected(self):
+        self.assertFalse(protocol.validate_job_id("JOB\r\n"))
+
+    def test_job_id_embedded_newline_rejected(self):
+        self.assertFalse(protocol.validate_job_id("JO\nB"))
+
+    def test_safe_name_trailing_newline_rejected(self):
+        self.assertFalse(protocol.validate_safe_name("fixture.txt\n"))
+
+    def test_request_id_trailing_newline_rejected(self):
+        # Construct a canonical UUID v4 then append a newline.
+        import uuid
+        rid = str(uuid.uuid4()) + "\n"
+        self.assertFalse(protocol.validate_request_id(rid))
+
+    def test_hash_trailing_newline_rejected(self):
+        self.assertFalse(protocol.validate_hash_format("a" * 64 + "\n"))
+
+    def test_hash_trailing_crlf_rejected(self):
+        self.assertFalse(protocol.validate_hash_format("a" * 64 + "\r\n"))
+
+    def test_hash_64_chars_plus_newline_rejected(self):
+        # 64 'a' + newline is 65 chars; the grammar must not accept it.
+        self.assertFalse(protocol.validate_hash_format("a" * 64 + "\n"))
+
+
+class StrictJsonDumpsAllowNanTests(unittest.TestCase):
+    """strict_json_dumps must reject NaN/Infinity at encode time, mirroring
+    strict_json_loads."""
+
+    def test_nan_rejected(self):
+        with self.assertRaises(ValueError):
+            protocol.strict_json_dumps({"x": float("nan")})
+
+    def test_positive_infinity_rejected(self):
+        with self.assertRaises(ValueError):
+            protocol.strict_json_dumps({"x": float("inf")})
+
+    def test_negative_infinity_rejected(self):
+        with self.assertRaises(ValueError):
+            protocol.strict_json_dumps({"x": -float("inf")})
+
+
+class IdentitySchemaValidationTests(unittest.TestCase):
+    """Schema-level identity validation in validate_response / validate_receipt.
+
+    Schema validity of (request_id, job_id, operation) is enforced by
+    the validator; request correlation is a separate orchestrator concern.
+    A schema-invalid identity must never reach the correlation gate.
+    """
+
+    def _base_receipt(self):
+        import uuid
+        return {
+            "protocol_version": 1,
+            "request_id": str(uuid.uuid4()),
+            "job_id": "JOB-ID",
+            "operation": "INSPECT_SYNTHETIC_INPUT",
+            "status": "SUCCESS",
+            "started_at_ms": 0,
+            "finished_at_ms": 0,
+            "inputs": [],
+            "outputs": [],
+            "worker_assertions": [
+                {"name": "probe", "expected": True, "actual": True, "passed": True}
+            ],
+            "warnings": [],
+        }
+
+    def test_receipt_malformed_request_id_rejected(self):
+        from schemas import validate_receipt
+        r = self._base_receipt()
+        r["request_id"] = "not-a-uuid"
+        self.assertFalse(validate_receipt(r)[0])
+
+    def test_receipt_request_id_trailing_newline_rejected(self):
+        import uuid
+        from schemas import validate_receipt
+        r = self._base_receipt()
+        r["request_id"] = str(uuid.uuid4()) + "\n"
+        self.assertFalse(validate_receipt(r)[0])
+
+    def test_receipt_invalid_job_id_rejected(self):
+        from schemas import validate_receipt
+        r = self._base_receipt()
+        r["job_id"] = "JOB..BAD"
+        self.assertFalse(validate_receipt(r)[0])
+
+    def test_receipt_job_id_containing_dotdot_rejected(self):
+        from schemas import validate_receipt
+        r = self._base_receipt()
+        r["job_id"] = "JOB..X"
+        self.assertFalse(validate_receipt(r)[0])
+
+    def test_receipt_bad_operation_rejected(self):
+        from schemas import validate_receipt
+        r = self._base_receipt()
+        r["operation"] = "EXECUTE_COMMAND"  # not in allowlist grammar
+        # Operation grammar permits any safe-name; the allowlist check is
+        # at the orchestrator layer, not the schema. So we use a clearly
+        # schema-invalid operation value.
+        r["operation"] = 123
+        self.assertFalse(validate_receipt(r)[0])
+
+    def test_response_malformed_request_id_rejected(self):
+        import uuid
+        from schemas import validate_response
+        r = {
+            "protocol_version": 1,
+            "request_id": "not-a-uuid",
+            "job_id": "JOB-ID",
+            "operation": "INSPECT_SYNTHETIC_INPUT",
+            "status": "SUCCESS",
+            "started_at_ms": 0,
+            "finished_at_ms": 0,
+            "worker_receipt": self._base_receipt(),
+            "error": None,
+        }
+        self.assertFalse(validate_response(r)[0])
+
+    def test_response_request_id_trailing_newline_rejected(self):
+        import uuid
+        from schemas import validate_response
+        r = {
+            "protocol_version": 1,
+            "request_id": str(uuid.uuid4()) + "\n",
+            "job_id": "JOB-ID",
+            "operation": "INSPECT_SYNTHETIC_INPUT",
+            "status": "SUCCESS",
+            "started_at_ms": 0,
+            "finished_at_ms": 0,
+            "worker_receipt": self._base_receipt(),
+            "error": None,
+        }
+        self.assertFalse(validate_response(r)[0])
+
+    def test_response_invalid_job_id_rejected(self):
+        from schemas import validate_response
+        r = {
+            "protocol_version": 1,
+            "request_id": "a0f0e0d0-1111-4222-8333-444455556666",
+            "job_id": "JOB..BAD",
+            "operation": "INSPECT_SYNTHETIC_INPUT",
+            "status": "SUCCESS",
+            "started_at_ms": 0,
+            "finished_at_ms": 0,
+            "worker_receipt": self._base_receipt(),
+            "error": None,
+        }
+        self.assertFalse(validate_response(r)[0])
+
+    def test_response_job_id_containing_dotdot_rejected(self):
+        from schemas import validate_response
+        r = {
+            "protocol_version": 1,
+            "request_id": "a0f0e0d0-1111-4222-8333-444455556666",
+            "job_id": "BAD..JOB",
+            "operation": "INSPECT_SYNTHETIC_INPUT",
+            "status": "SUCCESS",
+            "started_at_ms": 0,
+            "finished_at_ms": 0,
+            "worker_receipt": self._base_receipt(),
+            "error": None,
+        }
+        self.assertFalse(validate_response(r)[0])
+
+    def test_response_bad_operation_rejected(self):
+        from schemas import validate_response
+        r = {
+            "protocol_version": 1,
+            "request_id": "a0f0e0d0-1111-4222-8333-444455556666",
+            "job_id": "JOB-ID",
+            "operation": 123,
+            "status": "SUCCESS",
+            "started_at_ms": 0,
+            "finished_at_ms": 0,
+            "worker_receipt": self._base_receipt(),
+            "error": None,
+        }
+        self.assertFalse(validate_response(r)[0])
+
+
 class ScalarDomainTests(unittest.TestCase):
     def test_allowed_scalars(self):
         for good in ("text", 3, True, False, None):

@@ -11,21 +11,21 @@ inference applies (ADR-002 §Evidence semantics).
 
 ## Status (honest)
 
-- Session-level PASS/FAIL over real subprocesses: **VERIFIED locally**;
+- Session-level PASS/FAIL over real subprocesses: **VERIFICADO** locally;
   exercised end-to-end on Windows for the test set in this directory and on
   the CI matrix (`ubuntu-latest` and `windows-latest`, Python 3.11/3.12).
-- `WINDOWS_DIRECT_CHILD_TERMINATION`: **VERIFIED** by the ctypes-based
+- `WINDOWS_DIRECT_CHILD_TERMINATION`: **VERIFICADO** by the ctypes-based
   `OpenProcess` / `GetExitCodeProcess` / `STILL_ACTIVE` test in
   `tests/test_platform_cleanup.py`. The test only runs on Windows runners
   and is reported as PASS only there.
-- `WINDOWS_TREE_CLEANUP`: **NO_VERIFICADO**. Job Objects / `taskkill /T` /
+- `WINDOWS_TREE_CLEANUP`: **NO VERIFICADO**. Job Objects / `taskkill /T` /
   AppContainer are out of scope for this POC and are not claimed.
-- `OS_SANDBOX`: **NO_VERIFICADO / OUT OF SCOPE** (ADR-002 D16). Process
+- `OS_SANDBOX`: **NO VERIFICADO / OUT OF SCOPE** (ADR-002 D16). Process
   isolation is not an OS sandbox. Worker code is trusted code running with
   the host account's privileges; confinement is a separate future boundary.
-- `POSIX` process-group cleanup: **VERIFIED** on `ubuntu-latest` CI
+- `POSIX` process-group cleanup: **VERIFICADO** on `ubuntu-latest` CI
   (`test_process_group_is_destroyed_after_timeout`).
-- `INSPECT_SYNTHETIC_INPUT` operation-specific truthfulness: **VERIFIED**
+- `INSPECT_SYNTHETIC_INPUT` operation-specific truthfulness: **VERIFICADO**
   (D5a: exactly one input ref with exact path and exact SHA-256, exactly
   zero outputs, `candidates/` empty).
 
@@ -38,7 +38,7 @@ python -m unittest discover -s research/poc_ipc_001/tests -v
 ```
 
 Skips are environment-capability skips (e.g. symlink creation rights on
-the runner). They are reported as `NO_VERIFICADO`, never converted to PASS.
+the runner). They are reported as `NO VERIFICADO`, never converted to PASS.
 
 ## Public API
 
@@ -118,7 +118,7 @@ request".
 | Spawn flags | `start_new_session=True` | `CREATE_NEW_PROCESS_GROUP` |
 | Readiness polling | non-blocking fd + select slices | PeekNamedPipe availability poll |
 | Execution-deadline cleanup | child exits naturally; group TERM→KILL if not | `proc.terminate()` (TerminateProcess) on the direct child |
-| Tree cleanup | group kill (exercised on Linux CI) | **NO_VERIFICADO** (Job Objects / taskkill /T future work) |
+| Tree cleanup | group kill (exercised on Linux CI) | **NO VERIFICADO** (Job Objects / taskkill /T future work) |
 | Thread lifetime | deadline-polled; join finite | same strategy; verified 0 leaked threads in every session test |
 | Direct-child-reaped proof | `os.kill(pid, 0)` → `ProcessLookupError` | `OpenProcess` + `GetExitCodeProcess` returns a value other than `STILL_ACTIVE` |
 
@@ -184,8 +184,8 @@ operation-specific truthfulness invariants re-derived by the orchestrator.
   validation);
 - NO evidence-ladder inference: no E2/E3/E4/E5 from IPC (session PASS/FAIL
   is orthogonal to the artifact ladder);
-- `OS_SANDBOX`: **NO_VERIFICADO** — process isolation is not an OS sandbox
+- `OS_SANDBOX`: **NO VERIFICADO** — process isolation is not an OS sandbox
   (ADR-002 D16). Worker code is trusted code running with host-account
   privileges; confinement is a separate future boundary.
-- `WINDOWS_TREE_CLEANUP`: **NO_VERIFICADO** (only direct-child cleanup is
+- `WINDOWS_TREE_CLEANUP`: **NO VERIFICADO** (only direct-child cleanup is
   demonstrated on Windows).

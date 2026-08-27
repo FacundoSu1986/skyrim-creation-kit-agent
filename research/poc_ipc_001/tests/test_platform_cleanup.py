@@ -1,8 +1,8 @@
 """Platform cleanup tests: real timeouts, real kills, honest claims.
 
 Classification rules (ADR-002 honesty contract):
-- VERIFIED: demonstrated by a passing test on this platform.
-- NO_VERIFICADO: not demonstrable here; reported, never converted to PASS.
+- VERIFICADO: demonstrated by a passing test on this platform.
+- NO VERIFICADO: not demonstrable here; reported, never converted to PASS.
 """
 
 import os
@@ -140,9 +140,12 @@ class PosixProcessGroupTests(unittest.TestCase):
              "timeout_ms": DEADLINE_MS},
         )
         self.assertEqual(result.outcome_code, errors.PROCESS_TIMEOUT)
-        # The whole group is gone: signalling it must fail.
+        # start_new_session=True makes the child its own process-group
+        # leader, so pgid == child_pid. Signal the GROUP, not the pid, so
+        # the assertion depends on group destruction rather than on the
+        # already-proven death of the direct child.
         with self.assertRaises(ProcessLookupError):
-            os.killpg(os.getpgid(result.child_pid), 0)
+            os.killpg(result.child_pid, 0)
 
 
 class DescendantHoldingPipeTests(unittest.TestCase):
@@ -170,10 +173,10 @@ class DescendantHoldingPipeTests(unittest.TestCase):
 
         WINDOWS_DIRECT_CHILD_TERMINATION: PASS is asserted by
         test_direct_child_is_really_dead_after_timeout on Windows runners.
-        WINDOWS_TREE_CLEANUP remains NO_VERIFICADO — Job Objects / taskkill /T
+        WINDOWS_TREE_CLEANUP remains NO VERIFICADO — Job Objects / taskkill /T
         are future work and are never claimed by this POC.
         """
-        self.assertTrue(True)  # documented NO_VERIFICADO; nothing to assert
+        self.assertTrue(True)  # documented NO VERIFICADO; nothing to assert
 
 
 if __name__ == "__main__":

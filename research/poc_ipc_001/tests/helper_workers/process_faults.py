@@ -28,6 +28,11 @@ OPERATION = request["operation"]
 
 
 if mode == "nonzero_plausible_success":
+    # Construct a fully schema-valid Receipt + Response that reflects the
+    # *real* request identifiers, then exit 3. The orchestrator must still
+    # classify this as PROCESS_FAILED — a plausible-looking SUCCESS payload
+    # must never override a nonzero exit. The test must not be passing merely
+    # because the JSON was schema-invalid to begin with.
     receipt = {
         "protocol_version": 1,
         "request_id": REQ_ID,
@@ -45,6 +50,9 @@ if mode == "nonzero_plausible_success":
     }
     response = {
         "protocol_version": 1,
+        "request_id": REQ_ID,
+        "job_id": JOB_ID,
+        "operation": OPERATION,
         "status": "SUCCESS",
         "started_at_ms": 1,
         "finished_at_ms": 2,

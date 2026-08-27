@@ -60,7 +60,7 @@ def validate_job_id(value) -> bool:
         return False
     if len(value) > 64:
         return False
-    if not JOB_ID_RE.match(value):
+    if not JOB_ID_RE.fullmatch(value):
         return False
     if ".." in value:  # explicit substring rejection
         return False
@@ -73,7 +73,7 @@ def validate_request_id(value) -> bool:
     """Canonical UUID v4 only: lowercase, hyphenated, version nibble 4, [89ab]."""
     if type(value) is not str:
         return False
-    return REQUEST_ID_RE.match(value) is not None
+    return REQUEST_ID_RE.fullmatch(value) is not None
 
 
 def validate_safe_name(value) -> bool:
@@ -84,7 +84,7 @@ def validate_safe_name(value) -> bool:
 def validate_hash_format(value) -> bool:
     if type(value) is not str:
         return False
-    return SHA256_RE.match(value) is not None
+    return SHA256_RE.fullmatch(value) is not None
 
 
 def validate_timeout_ms(value):
@@ -137,9 +137,18 @@ def strict_json_loads(data: bytes):
 
 
 def strict_json_dumps(obj) -> bytes:
-    """Deterministic encoding: sorted keys, compact separators, UTF-8."""
+    """Deterministic, strict encoding: sorted keys, compact separators, UTF-8.
+
+    Rejects NaN/Infinity/-Infinity at encode time as well as at decode time
+    (mirroring ``strict_json_loads``). Allowed in protocol v1: only JSON
+    primitives with finite values.
+    """
     return json.dumps(
-        obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        obj,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8")
 
 

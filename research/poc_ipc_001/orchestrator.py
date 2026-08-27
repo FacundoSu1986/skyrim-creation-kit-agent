@@ -189,13 +189,13 @@ def _writer(
             result.pipe_write_failed = True
         # Deadline expiry is owned by the timeout classifier.
     finally:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        # keepalive_file owns the fd. Closing it releases the descriptor
+        # exactly once. Closing `fd` here separately would be a double
+        # close and could tear down an unrelated descriptor the OS
+        # reuses between calls.
         try:
             keepalive_file.close()
-        except OSError:
+        except (OSError, ValueError):
             pass
 
 
@@ -535,11 +535,11 @@ class IPCOrchestrator:
         # Response-level correlation (independent of receipt). On a non-SUCCESS
         # response the receipt is required by the schema to be null; we never
         # index into it. The status value itself is the verdict carrier.
-        for field in ("request_id", "job_id", "operation"):
-            if response[field] != request[field]:
+        for key in ("request_id", "job_id", "operation"):
+            if response[key] != request[key]:
                 return self._fail(
                     result, errors.RECEIPT_MISMATCH,
-                    f"response.{field} does not correlate to request",
+                    f"response.{key} does not correlate to request",
                 )
         if response["status"] != protocol.STATUS_SUCCESS:
             return self._fail(result, response["status"],
@@ -548,11 +548,11 @@ class IPCOrchestrator:
 
         # SUCCESS path: receipt must be present, schema-valid, and correlated.
         receipt = response["worker_receipt"]
-        for field in ("request_id", "job_id", "operation"):
-            if receipt[field] != request[field]:
+        for key in ("request_id", "job_id", "operation"):
+            if receipt[key] != request[key]:
                 return self._fail(
                     result, errors.RECEIPT_MISMATCH,
-                    f"receipt.{field} does not correlate to request",
+                    f"receipt.{key} does not correlate to request",
                 )
 
         # Non-vacuous assertions, all passing (contract items 8-9 precede
