@@ -38,7 +38,12 @@ Build a safety-first Skyrim SE/AE authoring agent without overstating runtime ev
 
 ## Current implementation boundary
 
-Only `research/poc_002/` is executable and validated. It supports `INSPECT_HEADER` against a synthetic fixture. Do not silently promote it into production code.
+Validated executable research baselines include:
+
+- `research/poc_002/` - synthetic TES4 parser/safety pipeline (POC-002, `INSPECT_HEADER` against a synthetic fixture);
+- `research/poc_ipc_001/` - isolated-worker IPC proof (POC-IPC-001, one trusted read-only operation `INSPECT_SYNTHETIC_INPUT`).
+
+Both remain research POCs and are NOT production authoring backends. Do not silently promote either into production code.
 
 ## Canonical experiment numbering
 

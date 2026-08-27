@@ -1,7 +1,7 @@
 # ADR-002 — Isolated worker IPC protocol and transactional boundaries
 
 - **Status:** ACCEPTED (2026-08-25; see [Acceptance record](#acceptance-record))
-- **Date:** 2026-08-25 (revised after architecture review rounds)
+- **Date:** 2026-08-25 (original) / 2026-08-26 (clarifications D13/D13a, D7a, D5a)
 - **Scope:** IPC protocol and transactional boundaries for isolated workers.
 - **Depends on:** [ADR-001](ADR-001-hybrid-headless-first-architecture.md) (ACCEPTED).
 - **Related:** POC-002 (PASS — synthetic TES4 safety pipeline), future **POC-IPC-001**.
@@ -37,8 +37,11 @@ The IPC boundary exists to enforce this split mechanically: nothing crosses it e
 | D10 | All paths derived from request data are resolved and re-contained inside the job workspace; traversal/symlink/junction escape attempts fail closed. |
 | D11 | Workers write only `candidates/` and `temp/`; `originals/` is immutable; candidate→live promotion happens nowhere in this design. |
 | D12 | POC-IPC-001 outcomes use a session-level `PASS`/`FAIL` verdict **separate** from the artifact evidence ladder; no E3/E4/E5 claims and no E2 reuse. |
-| D13 | Exactly one **monotonic** session deadline starts immediately at spawn and governs stdin write, stdout/stderr reads, worker execution, and wait/reap. Wall-clock time is audit-only. |
+| D13 | A single monotonic **execution deadline** starts immediately post-spawn and governs stdin write, stdout/stderr reads, worker execution, and the normal wait for completion. Once that deadline expires the outcome becomes irrevocably `PROCESS_TIMEOUT`. A separate bounded **cleanup grace** (D13a) handles terminate, reap, and thread join only. Wall-clock time is audit-only. |
 | D14 | Workers — and any future validator process — emit all evidence as untrusted stdout bytes. Only the orchestrator persists `receipts/`, `logs/`, and `reports/` content, always after validation. No component writes trusted evidence areas directly. *(Protocol contract between well-behaved participants; not OS enforcement.)* |
+| D13a | After the execution deadline (D13) expires, a separate bounded **cleanup grace** may be used only for terminate, process-tree cleanup per demonstrated platform support, pipe close, and finite thread join. The cleanup grace never resumes execution, never salvages partial output, and never converts a `PROCESS_TIMEOUT` into `SUCCESS`. It is itself strictly bounded and uses `monotonic()`. See [Deadline and cleanup time semantics](#deadline-and-cleanup-time-semantics-d13-d13a). |
+| D5a | Operation-specific receipt truthfulness. The generic Receipt schema is necessary but not sufficient. Each typed operation may define receipt invariants stronger than the schema. A schema-valid Receipt that violates those operation-specific truthfulness invariants cannot produce session PASS. POC-IPC-001 applies D5a to `INSPECT_SYNTHETIC_INPUT`: exactly one InputRef required, InputRef.path equals the exact canonical path derived from validated `input_name`, InputRef.sha256 equals the trusted-side recomputation of that exact provisioned file, `outputs` is exactly `[]`, and `candidates/` remains empty. The D5a checklist for any future operation lives in the operation registry. |
+| D7a | `PIPE_WRITE_FAILED` requires an observed delivery failure (rejected/partial write, `BrokenPipeError`/`ERROR_BROKEN_PIPE`); a sub-buffer write accepted by the OS with the child exiting without producing a parseable response is `INVALID_RESPONSE`. See [Stdin pipe taxonomy clarification](#stdin-pipe-taxonomy-clarification-d7a). |
 | D15 | Wire schemas are closed-world at every nesting level; unknown fields reject recursively. Extensions require a protocol version bump. |
 | D16 | **Process isolation is not an OS sandbox**: worker code is trusted code running with the host account's privileges; only its outputs are untrusted data. OS confinement is a separate future boundary (`OS_SANDBOX: NO VERIFICADO / OUT OF SCOPE FOR POC-IPC-001`). |
 
@@ -90,6 +93,56 @@ Process isolation therefore draws a *data* boundary, not a *privilege* boundary:
 `OS_SANDBOX`: **NO VERIFICADO — OUT OF SCOPE FOR POC-IPC-001.**
 
 Everything in this ADR constrains *legitimate* operations and defines how untrusted *outputs* are judged; none of it prevents a hostile process from acting outside the protocol. Where that distinction matters (evidence areas, threat model), this ADR says so explicitly instead of implying enforcement that does not exist.
+
+## Deadline and cleanup time semantics (D13 / D13a)
+
+Two independent monotonic phases:
+
+| Phase | Time source | Default ceiling | Purpose |
+| --- | --- | --- | --- |
+| Execution deadline (D13) | `monotonic()` | `timeout_ms` (≤ `MAX_TIMEOUT_MS`, default `DEFAULT_TIMEOUT_MS`) | stdin write, stdout/stderr read, worker run, `wait()` for natural exit |
+| Cleanup grace (D13a) | `monotonic()` (separate deadline) | `TERMINATE_GRACE_S` (SIGTERM/wait) → SIGKILL + `JOIN_GRACE_S` (thread join) | terminate, reap, close pipes, finite thread join |
+
+Rules:
+
+- The execution deadline is the only place where the outcome is decided.
+  When it expires, the outcome becomes irrevocably `PROCESS_TIMEOUT`.
+- The cleanup grace exists only to clean up; it never resumes execution,
+  never salvages partial output, and never converts `PROCESS_TIMEOUT` into
+  `SUCCESS`. It is itself strictly bounded; nothing about it may grow
+  unbounded.
+- Both phases use `monotonic()`. NTP/calendar corrections affect neither.
+  Wall-clock `*_at_ms` timestamps are audit-only.
+- The cleanup grace is NOT added to the execution budget and does NOT
+  extend the session.
+
+## Stdin pipe taxonomy clarification (D7a)
+
+The original ADR text read "child closes stdin early ⇒ `PIPE_WRITE_FAILED`"
+as a single bullet. Empirically (POC-IPC-001 / README note) this collapses
+deterministically into two distinct cases for sub-buffer payloads where the
+kernel accepts the parent's full write before the child exits. What the
+parent can actually observe is the **write outcome** on the kernel side,
+not what the child did with the bytes:
+
+- The OS **rejects the write** with `BrokenPipeError`, returns a partial
+  write, or surfaces `ERROR_BROKEN_PIPE` (Windows) — observed during
+  mid-delivery — ⇒ **`PIPE_WRITE_FAILED`**. (The parent demonstrably
+  could not deliver the full request.)
+- The OS **accepts the complete request** into the pipe buffer (no
+  rejection, no partial write, no broken-pipe signal), the child
+  subsequently exits with status 0, and there is no parseable Response
+  on stdout ⇒ **`INVALID_RESPONSE`**. (Delivery succeeded at the OS
+  level; the child simply did not produce a valid Response.)
+
+`PIPE_WRITE_FAILED` is therefore reserved for **observable delivery
+failure**. "Write completed at the OS + child exits 0 + no parseable
+Response" is **`INVALID_RESPONSE`**, not a pipe failure. This amendment
+is a clarification of intent, not a behavior change: the orchestrator
+already classifies these deterministically as fail-closed; the table
+now matches reality. The protocol deliberately does not attempt to
+prove that the child actually read the bytes; v1 has no consumption
+ack, by design.
 
 ## Process and transport model
 
@@ -309,21 +362,21 @@ Values are constants proposed for POC scale; changing them later changes this AD
 
 ## Bounded I/O strategy
 
-`communicate()`-style full-buffered capture is **forbidden**: it consumes memory proportional to attacker-chosen output and only measures afterwards. All three pipes are governed by the **same session deadline** (D13).
+`communicate()`-style full-buffered capture is **forbidden**: it consumes memory proportional to attacker-chosen output and only measures afterwards. All three pipes operate under the **execution deadline** (D13); cleanup after that deadline follows the bounded grace in D13a.
 
-**Deadline model.** Immediately after `spawn()` — before any I/O — the orchestrator computes `deadline = monotonic_clock() + effective_timeout_ms` where `effective_timeout_ms` is `DEFAULT_TIMEOUT_MS` or the validated request value. Every subsequent step (stdin write, stdout read, stderr read, worker execution, wait/reap) runs under this single deadline. It never starts "after stdin is sent": a worker that never reads its stdin cannot stall the parent outside the deadline. Wall-clock/calendar corrections (NTP, manual clock change) never alter the allowed duration; epoch timestamps are recorded for audit only.
+**Deadline model.** Immediately after `spawn()` — before any I/O — the orchestrator computes `deadline = monotonic_clock() + effective_timeout_ms / 1000.0` where `effective_timeout_ms` is `DEFAULT_TIMEOUT_MS` or the validated request value. `timeout_ms` is in milliseconds; `monotonic()` returns seconds — the runtime always converts by dividing by `1000.0` before adding. Every subsequent step (stdin write, stdout read, stderr read, worker execution, normal wait) runs under this single execution deadline. It never starts "after stdin is sent": a worker that never reads its stdin cannot stall the parent outside the deadline. Wall-clock/calendar corrections (NTP, manual clock change) never alter the allowed duration; epoch timestamps are recorded for audit only.
 
 **Stdin writer.**
 
 - The request is fully serialized and size-checked against `MAX_REQUEST_BYTES` **before spawn**; the writer transmits exactly that buffer and nothing more, then closes stdin.
 - The writer is deadline-aware: each write attempt checks remaining budget; on expiry it stops, and the timeout path runs.
 - It never blocks indefinitely: POSIX uses non-blocking fds / poll-based write loops; Windows uses a bounded writer thread that respects the deadline remainder and is joined with a finite wait — a thread must never outlive the session. Windows thread mechanics are **design decision — NO VERIFICADO** until POC-IPC-001 demonstrates them.
-- `BrokenPipeError` / partial delivery / child-closed-stdin-early map deterministically to `PIPE_WRITE_FAILED` (see taxonomy). A worker that simply never consumes stdin is killed by the deadline as `PROCESS_TIMEOUT` — controlled failure, never a hang.
+- An observed `BrokenPipeError` / `ERROR_BROKEN_PIPE` (Windows) / partial delivery during the write maps deterministically to `PIPE_WRITE_FAILED` (see taxonomy). A worker that never reads from stdin (or reads too slowly) is killed by the deadline as `PROCESS_TIMEOUT` — controlled failure, never a hang. "Child closes stdin early" is not by itself a `PIPE_WRITE_FAILED` trigger: when the OS still accepts the full sub-buffer write and the child then exits, D7a classifies the exchange as `INVALID_RESPONSE` (or `PROCESS_FAILED` for a nonzero exit).
 
 **Readers (stdout/stderr).**
 
-- Dedicated capped reader loops accumulate at most their stream cap. The byte after the cap is discarded, the exchange is marked `OUTPUT_LIMIT_EXCEEDED`, and the timeout path runs.
-- Reading stops unconditionally at the deadline regardless of bytes seen; EOF before a complete valid response is classified deterministically (see taxonomy notes).
+- Dedicated capped reader loops accumulate at most their stream cap. The byte after the cap is **discarded**, the exchange is marked `OUTPUT_LIMIT_EXCEEDED`, and the orchestrator terminates the child immediately (no waiting for the execution deadline). Reading continues to detect a natural EOF in case the child exits cleanly before flooding past the cap.
+- Reading stops unconditionally at the execution deadline regardless of bytes seen; EOF before a complete valid response is classified deterministically (see taxonomy notes).
 - stderr is captured for diagnostics, size-capped, never parsed as protocol.
 - POSIX: non-blocking reads/select satisfy this directly. Windows: reader threads with bounded accumulators — same joinability/deadline requirements as the writer; **NO VERIFICADO** until demonstrated.
 
@@ -363,9 +416,9 @@ Every request follows this sequence; any step failing aborts the sequence fail-c
 5. Orchestrator selects the deterministic worker executable from the registry and constructs the controlled environment (allowlist, temp redirection, no shell, `-I -B`, cwd = job workspace).
 6. Request is serialized and re-checked against `MAX_REQUEST_BYTES` (still pre-spawn).
 7. Subprocess spawned without shell; resources prepared (pipes, readers, writer).
-8. **The single monotonic deadline starts immediately post-spawn.**
-9. Bounded stdout/stderr readers attach; the bounded stdin writer transmits the request under the same deadline and closes stdin on completion.
-10. Read/wait continues under the same deadline. On deadline: all I/O stops, the process/tree is terminated per platform support (see cleanup), reap via `wait()`, pipes closed, outcome `PROCESS_TIMEOUT` with all partial output discarded.
+8. **The single execution deadline (D13) starts immediately post-spawn.**
+9. Bounded stdout/stderr readers attach; the bounded stdin writer transmits the request under the execution deadline and closes stdin on completion.
+10. Read/wait continues under the execution deadline. On deadline expiry the outcome is irrevocably `PROCESS_TIMEOUT`; all I/O stops, the process/tree is terminated per platform support, pipes are closed, and the bounded cleanup grace (D13a) runs to reap and join threads. Partial output is never salvaged.
 11. Exit code awaited; nonzero exit ⇒ `PROCESS_FAILED`, and any stdout content is treated as untrusted diagnostics, never as a result.
 12. Response schema validated: encoding, JSON strictness, size, recursive closed-world fields, `type-is-int` numerics, echo/correlation fields, status vocabulary.
 13. If `status == SUCCESS`: receipt presence, receipt-schema validation (recursive), correlation re-checked at receipt level, hash formats verified.
@@ -408,24 +461,25 @@ Stable codes for tests and summaries. Emission point noted; both sides use the s
 | `WORKSPACE_VIOLATION` | path containment breach; no-overwrite breach; originals mutation detected | both |
 | `PROCESS_TIMEOUT` | session deadline exceeded | orchestrator |
 | `PROCESS_FAILED` | nonzero exit, spawn failure, crash | orchestrator |
-| `PIPE_WRITE_FAILED` | parent could not deliver the full request: broken pipe, child closed stdin early, partial write | orchestrator |
+| `PIPE_WRITE_FAILED` | parent observed a delivery failure: `BrokenPipeError` (POSIX) / `ERROR_BROKEN_PIPE` (Windows) / partial write during delivery (D7a) | orchestrator |
 | `OUTPUT_LIMIT_EXCEEDED` | any stream past its cap | orchestrator |
 | `INVALID_RESPONSE` | response fails schema/JSON/UTF-8 validation, or stdout reaches clean EOF without a valid response while exit code was zero | orchestrator |
 | `RECEIPT_MISMATCH` | missing receipt or failed correlation | orchestrator |
 | `ASSERTION_FAILED` | required assertions missing/empty/failing/non-boolean | orchestrator |
 | `INTERNAL_ERROR` | unexpected local condition (e.g., OS I/O error orchestrator-side), always fail-closed | both |
 
-Deterministic classification for pipe edge cases (no aesthetic codes beyond `PIPE_WRITE_FAILED`):
+Deterministic classification for pipe edge cases (no aesthetic codes beyond `PIPE_WRITE_FAILED`); cross-references D7a above:
 
-- child closes stdin early / parent cannot write the full request / pipe breaks during write → `PIPE_WRITE_FAILED`;
+- OS-rejected / partial write / observed `BrokenPipeError` / `ERROR_BROKEN_PIPE` (Windows) during delivery → `PIPE_WRITE_FAILED`;
+- OS accepted the complete write, child exits with status 0, no parseable Response on stdout → `INVALID_RESPONSE` (see D7a);
 - stdout hits EOF before a parseable response **and** exit code was nonzero → `PROCESS_FAILED` (exit gate dominates);
 - stdout hits EOF before a parseable response with exit code zero → `INVALID_RESPONSE`;
 - local OS errors raising around pipe machinery → `INTERNAL_ERROR` with cause recorded.
 
 ## Timeout and process-tree cleanup
 
-- Deadline semantics: `deadline = monotonic_clock() + timeout_ms` — a **monotonic** clock, never wall-clock/calendar time. NTP corrections or manual clock changes cannot extend or shorten an operation's allowed duration. Epoch `*_at_ms` timestamps exist purely for audit trails.
-- Deadline covers the entire session (D13): stdin write, stdout read, stderr read, worker execution, wait/reap.
+- Deadline semantics: `deadline = monotonic_clock() + timeout_ms / 1000.0` — a **monotonic** clock, never wall-clock/calendar time. `timeout_ms` is in milliseconds; `monotonic()` returns seconds — every formula divides the millisecond ceiling by `1000.0` before adding it to the monotonic clock. NTP corrections or manual clock changes cannot extend or shorten an operation's allowed duration. Epoch `*_at_ms` timestamps exist purely for audit trails.
+- The execution deadline (D13) covers stdin write, stdout read, stderr read, worker execution, and the normal wait. The bounded cleanup grace (D13a) handles terminate, reap, pipe close, and thread join.
 - On expiry: readers/writer stop immediately; terminate; reap via `wait()`; close pipes in `finally`; discard all partial output; record `PROCESS_TIMEOUT`; verdict FAIL. Partial output is never salvaged into a result.
 - **POSIX:** spawn with `start_new_session=True` → the child leads its own process group; cleanup escalates `SIGTERM` (grace) → `SIGKILL` to the whole group via `os.killpg`. Group kill on POSIX is standard practice; its specific exercise in tests remains to be demonstrated by POC-IPC-001.
 - **Windows:** `Process.terminate()` maps to `TerminateProcess` and kills **only** the direct child. Full tree termination via Job Objects (assign child at spawn, `TerminateJobObject`) or `taskkill /T /F` via a trusted absolute path is a recorded **design direction — NO VERIFICADO**. Console-control alternatives (`CREATE_NEW_PROCESS_GROUP` + `CTRL_BREAK_EVENT`) are equally **NO VERIFICADO**.
