@@ -8,95 +8,132 @@
 
 ## 1. Executive Summary
 
-This report evaluates the feasibility of integrating [Mutagen](https://github.com/Mutagen-Modding/Mutagen), a C#/.NET library for Bethesda mod parsing, into the MIT-licensed `skyrim-creation-kit-agent` project. It addresses the licensing conflict (GPL-3.0 vs MIT) and the runtime constraints imposed by ADR-002.
+This report evaluates the feasibility of integrating [Mutagen](https://github.com/Mutagen-Modding/Mutagen), a C#/.NET library for Bethesda plugin parsing, into the MIT-licensed `skyrim-creation-kit-agent` project. It addresses the licensing considerations (GPL-3.0 vs. MIT) and the runtime constraints imposed by ADR-002.
 
-We conclude that:
-1. Mutagen is the only mature, actively maintained library for complete Skyrim SE/AE plugin manipulation.
-2. Direct linking (L1) violates the project's MIT license constraints.
-3. Separation via standard JSON-IPC pipes (L2/L3) creates a valid legal and architectural boundary, but requires generalizing the worker runtime model defined in ADR-002.
-4. Formal legal review is required before proceeding to implementation.
+Key findings:
+1. Mutagen is the strongest/mature candidate identified in this research for Bethesda plugin manipulation.
+2. Direct linking (L1) likely makes GPL obligations relevant to distribution of the combined work.
+3. Process separation via exec and pipes (L2/L3) is evidence in favor of separate-program treatment under GNU GPL guidance, but is not a legal safe harbor. Communication semantics and distribution packaging also matter.
+4. Repository separation (L3) improves provenance and compliance, but does not itself decide whether programs form one combined work.
+5. ADR-002's launch model can be generalized via typed Worker Launch Profiles without altering wire Protocol Version 1 schemas.
+6. The legal determination remains `LEGAL_REVIEW_REQUIRED`.
 
 ---
 
 ## 2. Mutagen Facts
 
 - **Official Repository**: [Mutagen-Modding/Mutagen](https://github.com/Mutagen-Modding/Mutagen)
-- **License**: GPL-3.0-only (GPL-3.0 header and LICENSE file in repo).
-- **NuGet Packages**:
-  - `Mutagen.Bethesda` (Core package)
-  - `Mutagen.Bethesda.Skyrim` (Skyrim-specific classes)
-  - Latest version: `0.55.0-alpha.7` / stable `0.54.0` (as of NuGet release history).
-- **Target Frameworks**: `.NET 9.0` (latest releases target `net9.0`).
-- **Platform Support**: Cross-platform (Windows, Linux, macOS) via standard .NET Core runtimes.
+- **License**: GPL-3.0-only (explicit LICENSE file in repository).
+- **Candidate Stable Version**: `0.54.4` (candidate release to be pinned upon acceptance).
+- **Active Prerelease Branch**: `0.55.0-alpha.7`.
+- **Target Frameworks**: Release `0.54.4` packages support `net8.0` and `net9.0`. Target runtime framework is **TO BE DECIDED** following deployment/packaging evaluation.
+- **Platform Support**: Cross-platform (Windows, Linux, macOS) on supported .NET runtimes.
 - **Single-File Read API**: 
   - **API Signature**: `public static SkyrimMod CreateFromBinaryOverlay(ModPath path, SkyrimRelease release, StringsReadParameters stringsParam = default)`
-  - **Single-file read possible**: **YES**. Bypasses environment auto-discovery.
+  - **Single-file read possible**: **YES**.
   - **Skyrim installation required**: **NO**.
-  - **Steam discovery avoidable**: **YES**, when loading via overlay without invoking `GameEnvironment.Typical`.
+  - **Steam / load order discovery avoidable**: **YES** (by avoiding `GameEnvironment.Typical`).
 
 ---
 
-## 3. License Analysis
+## 3. License Analysis & GNU GPL FAQ Guidance
 
-### License Architectures (L1-L5)
+The repository is MIT-licensed. Mutagen is licensed under GPL-3.0-only. MIT code is GPL-compatible, but distributing a combined work requires fulfilling GPL obligations.
 
-#### L1 — Link Directo
-- **Description**: MIT application references NuGet Mutagen (GPL) directly in the same compiled binary.
-- **Result**: GPL copyleft applies to the entire project. The project cannot be distributed under MIT.
-- **Verdict**: **REJECTED**.
+### GNU GPL FAQ Citations
 
-#### L2 — Proceso Externo (Same Repo, Separate Binary)
-- **Description**: The orchestrator is MIT; the worker is a separate GPL-3.0 executable running via stdin/stdout JSON IPC.
-- **Result**: Permitted under GPL guidelines since communication uses standard pipes and a simple format. However, shipping them together under a single installer/package is high-risk for copyleft contamination claims.
-- **Verdict**: **ACCEPTED WITH CAUTION**.
+1. **[GPL FAQ #GPLPlugins](https://www.gnu.org/licenses/gpl-faq.html#GPLPlugins) (Separate vs. Combined Programs)**:
+   > *"A main program that uses simple fork and exec to invoke plug-ins and does not establish intimate communication between them results in the plug-ins being separate programs."*
+2. **[GPL FAQ #GPLInProprietarySystem](https://www.gnu.org/licenses/gpl-faq.html#GPLInProprietarySystem) (Pipes and Sockets)**:
+   > *"Pipes, sockets and command-line arguments are the communication mechanisms normally used between two separate programs... But if the semantics of the communication are intimate enough, exchanging complex internal data structures, that too could be a basis to consider the two parts as combined into a larger program."*
+3. **[GPL FAQ #MereAggregation](https://www.gnu.org/licenses/gpl-faq.html#MereAggregation) (Mere Aggregation)**:
+   > *"An 'aggregate' consists of a number of separate programs, distributed on the same compilation or distribution medium... If the two programs remain well separated, like the compiler and the kernel, then it is an aggregate."*
 
-#### L3 — GPL Adapter Separado (Separate Repo)
-- **Description**: The Mutagen worker is maintained in a completely separate GitHub repository under GPL-3.0. The main repo has zero GPL code.
-- **Result**: Clean legal boundary. No risk of source contamination.
-- **Verdict**: **RECOMMENDED**.
+### Analysis of Architectural Models (L1–L5)
+
+#### L1 — Direct Linking (In-Process)
+- Direct linking likely makes GPL obligations relevant to distribution of the combined work.
+- *Verdict: REJECTED.*
+
+#### L2 — External Process (Same Repository, Separate Binary)
+- Uses JSON IPC over standard pipes. Process separation is evidence in favor of separate-program treatment, but is not a legal safe harbor. Distributing both together requires review under aggregation principles.
+- *Verdict: LEGAL_REVIEW_REQUIRED.*
+
+#### L3 — Separately Maintained GPL Adapter (Separate Repository)
+- Maintains the GPL worker in an independent repository under GPL-3.0. Keeps the main MIT repository free of GPL source code, improving provenance. Distribution coupling must still be evaluated.
+- *Verdict: TECHNICAL PREFERENCE / LEGAL_REVIEW_REQUIRED.*
 
 #### L4 — User-Supplied Tool
-- **Description**: The agent does not bundle the worker. The user must provide it.
-- **Result**: Eliminates distribution liability completely.
-- **Verdict**: **UX BLOCKER**.
+- The orchestrator acts purely as a client to a user-provided or externally installed tool. Avoids distributing the GPL worker from this project, reducing project-side distribution obligations; this is not a legal safe harbor.
+- *Verdict: UX BLOCKER / HIGH COMPLEXITY.*
 
-#### L5 — Permissive Alternative
-- **Description**: Use `esp_extractor` (Rust, MIT/Apache) or `tes4py` (Python, BSD-2-Clause).
-- **Result**: Incomplete feature set (no write support, immature APIs).
-- **Verdict**: **REJECTED**.
-
----
-
-## 4. Architectural Analysis & ADR-002 Generalization
-
-ADR-002 currently defines the launch command as strictly Python (`python -I -B`). Implementing a C# worker directly contradicts ADR-002.
-
-### Generalization Proposal
-We propose generalizing the trusted worker registry to support multiple launch profiles (e.g. `dotnet` runtime host or native binary hosts) while preserving the security boundaries (no shell, absolute paths, deny-by-default environment). The wire JSON protocol remains v1.
+#### L5 — Permissive Alternatives
+- `esp_extractor` (Rust, MIT OR Apache-2.0, v0.8.1): Capable within its translation and string extraction domain (with writing/applying capabilities for translations), but has a much smaller general authoring/record scope than Mutagen.
+- `tes4py` (Python, BSD-2-Clause): Legacy Oblivion parser; not a mature Skyrim SE/AE alternative.
+- *Verdict: Incomplete coverage for general plugin authoring.*
 
 ---
 
-## 5. Proposed POC-MUTAGEN-001 Design
+## 4. License Matrix
+
+| Option | Linking / Transport | Distributed Together | Technical Separation | License-Compliance Complexity | Legal Determination | Recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| **L1** | Direct (in-process) | Yes | LOW | HIGH | GPL obligations apply to distribution | **REJECTED** |
+| **L2** | JSON IPC over pipes | Yes | HIGH | MEDIUM | `LEGAL_REVIEW_REQUIRED` | **FEASIBLE WITH REVIEW** |
+| **L3** | JSON IPC over pipes | No (separate repo) | HIGH | MEDIUM | `LEGAL_REVIEW_REQUIRED` | **TECHNICAL PREFERENCE** |
+| **L4** | JSON IPC over pipes | No (user-provided) | HIGH | LOW | `LEGAL_REVIEW_REQUIRED` | **UX FALLBACK** |
+| **L5** | Permissive library | N/A | N/A | LOW | Permissive (MIT/Apache) | **REJECTED (INCOMPLETE)** |
+
+---
+
+## 5. Architectural Generalization of ADR-002
+
+ADR-002 currently specifies a Python command line (`python -I -B`). We propose introducing typed **Worker Launch Profiles** on the trusted orchestrator side:
+
+```python
+class WorkerLaunchProfile:
+    runtime_kind: str          # "python" | "dotnet" | "native"
+    executable_path: str       # Absolute path of trusted host/binary
+    args_template: list[str]   # Args list template (e.g. ["-I", "-B", "{entrypoint}"])
+    entrypoint: str            # Absolute path to assembly or script
+    environment_allowlist: list[str]
+    cwd_policy: str
+```
+
+- For Python, `-I -B` remains strictly enforced.
+- For .NET, direct invocation without shell and with deny-by-default environment.
+- The wire schemas and protocol semantics remain **Protocol Version 1**; no wire changes are needed.
+
+---
+
+## 6. Proposed POC-MUTAGEN-001 Design
 
 - **Operation**: `INSPECT_PLUGIN_HEADER` (Read-only)
-- **Runtime**: .NET 9.0 worker.
-- **Inputs**: `input/<plugin_name>` (safe-name token).
+- **Runtime**: Out-of-process .NET worker.
+- **Candidate Package Version**: `0.54.4` (to be locked via `packages.lock.json`).
+- **Target Framework**: TO BE DECIDED after supported-TFM/deployment review.
+- **Inputs**: `input/<plugin_name>` (safe-name token only).
 - **Outputs**: `[]` (no candidate writes).
-- **Assertions**: Non-vacuous check on Magic Number, FormVersion, and Master references.
-- **Fixture Strategy**: Synthetic plugin generated programmatically (e.g., via POC-002 synthetic generator) to avoid licensing issues with Bethesda assets.
+- **Fixture Strategy**: **EXPERIMENT REQUIRED**. Requires an author-owned, redistributable clean-room fixture with documented provenance. POC-002 synthetic fixture cannot be assumed compatible.
 
 ---
 
-## 6. External Source Record
+## 7. External Source Record
 
 - **TITLE**: Mutagen GitHub Repository
   - **PUBLISHER**: Mutagen-Modding
   - **URL**: https://github.com/Mutagen-Modding/Mutagen
   - **DATE ACCESSED**: 2026-08-28
-  - **CLAIM SUPPORTED**: GPL-3.0 license, .NET 9.0 target, `CreateFromBinaryOverlay` availability.
+  - **CLAIM SUPPORTED**: GPL-3.0 license, `0.54.4` release, `CreateFromBinaryOverlay` signature.
 
-- **TITLE**: NuGet Gallery Mutagen.Bethesda
-  - **PUBLISHER**: Noggog (NuGet Profile)
-  - **URL**: https://www.nuget.org/packages/Mutagen.Bethesda/
+- **TITLE**: GNU General Public License Frequently Asked Questions
+  - **PUBLISHER**: Free Software Foundation (FSF)
+  - **URL**: https://www.gnu.org/licenses/gpl-faq.html
   - **DATE ACCESSED**: 2026-08-28
-  - **CLAIM SUPPORTED**: Latest version and dependency license metadata.
+  - **CLAIM SUPPORTED**: GPL guidance on plug-ins (#GPLPlugins), pipes/sockets (#GPLInProprietarySystem), and mere aggregation (#MereAggregation).
+
+- **TITLE**: esp_extractor Crate Documentation
+  - **PUBLISHER**: Orcax-1399 (crates.io)
+  - **URL**: https://crates.io/crates/esp_extractor/0.8.1
+  - **DATE ACCESSED**: 2026-08-28
+  - **CLAIM SUPPORTED**: Version 0.8.1, MIT OR Apache-2.0 license, translation application capability.

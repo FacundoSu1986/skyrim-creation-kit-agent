@@ -8,180 +8,184 @@
 ## Context
 
 The agent requires a robust, headless Skyrim SE/AE plugin reader and writer to analyze and patch plugin records without relying on Windows UI automation of the Creation Kit or xEdit for routine tasks. 
-[Mutagen](https://github.com/Mutagen-Modding/Mutagen) is the community standard strongly typed .NET/C# library for Bethesda plugin manipulation. However, Mutagen is licensed under **GNU General Public License v3.0 (GPL-3.0)**, while this repository is licensed under the permissive **MIT License**. Furthermore, ADR-002 strictly prescribes a Python runtime (`python -I -B`) for out-of-process workers.
+[Mutagen](https://github.com/Mutagen-Modding/Mutagen) is the strongest/mature candidate identified in this research for Bethesda plugin manipulation in C#/.NET. However, Mutagen is licensed under the **GNU General Public License v3.0 (GPL-3.0)**, while this repository is licensed under the permissive **MIT License**. Furthermore, ADR-002 strictly prescribes a Python runtime (`python -I -B`) for out-of-process workers.
 
-This ADR defines how the project will address these legal, architectural, and dependency-related tensions.
+This ADR defines the technical options, license implications, and runtime boundaries required before any implementation may begin.
 
 ## Problem statement
 
-1. **Licensing Tension**: Can an MIT-licensed project use/interoperate with a GPL-3.0 library without copyleft contamination?
-2. **Runtime Tension**: ADR-002 specifies a Python-only worker launch command (`python -I -B`). A .NET-based worker violates the current text of ADR-002.
-3. **Hermetic Execution**: How can we run a Mutagen worker in a fail-closed, read-only manner without touching Steam registry, Skyrim's data folders, or exposing the host OS to risks?
+1. **Licensing Boundary**: How can an MIT-licensed project interact with a GPL-3.0 library upon distribution without violating or misrepresenting licensing obligations?
+2. **Runtime Generalization**: ADR-002 specifies a Python-only worker launch command (`python -I -B`). A .NET-based worker requires extending the trusted worker launch profile.
+3. **Hermetic Execution**: Ensuring that Mutagen execution is fail-closed, read-only, workspace-contained, and isolated from ambient host state (Steam, Skyrim Data directory, registry).
 
 ## Current architecture constraints
 
-- **ADR-001 Section: Worker boundaries**: Specifies that process isolation is a technical architecture choice, not a legal conclusion about GPL obligations.
-- **ADR-002 Section: Process and transport model**: Mandates the launch command: `<trusted absolute python> -I -B <trusted worker entry> --job-root <derived absolute job dir>`. This is Python-specific.
-- **ADR-002 Section: Success contract**: Mandates that process exit code must be zero, schema must validate, and all assertions must pass.
-- **ADR-002 Section: Workspace contract and ownership**: Workers only read `input/` and `originals/`, and write only to `candidates/` and `temp/`.
+- **ADR-001 (§Worker boundaries)**: Establishes that process isolation is an architectural and security separation, **not** a legal safe harbor regarding GPL obligations.
+- **ADR-002 (§Process and transport model)**: Specifies `<trusted absolute python> -I -B <trusted worker entry> --job-root <derived absolute job dir>`. The `-I -B` flags are normative for Python workers.
+- **ADR-002 (§Success contract & Workspace ownership)**: Mandates that exit code must be zero, schema must validate closed-world, assertions must pass, and workers may only read `input/`/`originals/` and write to `candidates/`/`temp/`.
 
 ---
 
 ## Mutagen technical facts
 
 - **Official Repository**: [Mutagen-Modding/Mutagen](https://github.com/Mutagen-Modding/Mutagen)
-- **License**: GPL-3.0-only (explicit LICENSE file in repository).
-- **Target Framework**: `.NET 9.0` (as of modern versions in August 2026).
-- **NuGet Packages**: `Mutagen.Bethesda` and `Mutagen.Bethesda.Skyrim` are published under the GPL-3.0 license.
-- **Platform Support**: Cross-platform (Windows, Linux, macOS) via standard .NET Core runtimes.
-- **Single-file Read**: Verified. The API offers `SkyrimMod.CreateFromBinaryOverlay(filePath, release)` which parses a single plugin from a path.
-- **Skyrim Installation Dependency**: Not required. Bypassing `GameEnvironment.Typical` allows loading isolated files directly, avoiding Steam auto-discovery and loading order assembly.
+- **License**: GPL-3.0-only (per repository LICENSE file and NuGet package metadata).
+- **Candidate Stable Release**: `0.54.4` (candidate version to be pinned upon acceptance).
+- **Active Prerelease Branch**: `0.55.0-alpha.7` (under active development).
+- **Target Frameworks**: Release `0.54.4` packages support modern .NET TFMs including `net8.0` and `net9.0`. Target runtime framework is **TO BE DECIDED** following a deployment/runtime packaging review.
+- **NuGet Packages**: `Mutagen.Bethesda`, `Mutagen.Bethesda.Skyrim`.
+- **Platform Support**: Cross-platform (Windows, Linux, macOS) on supported .NET runtimes.
+- **Single-file Read API**:
+  - `SkyrimMod.CreateFromBinaryOverlay(ModPath path, SkyrimRelease release, StringsReadParameters stringsParam = default)`
+  - Direct single-file read: **YES**.
+  - Skyrim installation required: **NO**.
+  - Steam / load order discovery avoidable: **YES** (by avoiding `GameEnvironment.Typical`).
 
 ---
 
-## License Gate Analysis (L1-L5)
+## License Analysis and GNU GPL FAQ Citations
 
-### L1 — Link Directo (MIT + NuGet Reference in same executable)
-- **Obligations**: A combined work that references Mutagen must be licensed under GPL-3.0. The MIT license is contaminated/invalidated for distribution.
-- **Technical Cost**: Low.
-- **Legal Confidence**: High (GPL violation if distributed as MIT).
-- **Recommendation**: Rejected.
+The repository is licensed under the permissive **MIT License**. Mutagen is licensed under **GPL-3.0-only**. MIT is GPL-compatible, meaning MIT-licensed code can be combined into a GPL work; however, a distributed combined work containing GPL components must comply with all GPL obligations (including source code availability for the entire combined work).
 
-### L2 — Proceso Externo (MIT Orchestrator + GPL Mutagen Worker via IPC)
-- **Obligations**: IPC boundary (stdin/stdout pipes, JSON schemas) constitutes separate programs under FSF GPL guidance. The orchestrator remains MIT; the worker source code remains GPL-3.0.
-- **Technical Cost**: Medium (requires IPC marshalling).
-- **Legal Confidence**: Medium-High (standard industry boundary).
-- **Recommendation**: Acceptable, but carries distribution risks if bundled together.
+To evaluate how process separation and distribution models affect licensing obligations, we reference authoritative guidance from the [GNU GPL FAQ](https://www.gnu.org/licenses/gpl-faq.html):
 
-### L3 — GPL Adapter Separado (Separate Repo/Binary for GPL Worker)
-- **Obligations**: Worker is hosted in a completely separate GPL-3.0 repository. The MIT repository contains zero GPL code. Interoperability occurs over a public protocol.
-- **Technical Cost**: High (dual-repository maintenance).
-- **Legal Confidence**: High (zero MIT repo contamination).
-- **Recommendation**: Recommended.
+1. **Separate vs. Combined Programs ([GPL FAQ #GPLPlugins](https://www.gnu.org/licenses/gpl-faq.html#GPLPlugins))**:
+   > *"If the main program uses fork and exec to invoke plug-ins, and they establish intimate communication by sharing complex data structures, or shipping complex data structures back and forth, that can make them one single combined program. A main program that uses simple fork and exec to invoke plug-ins and does not establish intimate communication between them results in the plug-ins being separate programs."*
+2. **Pipes and Sockets ([GPL FAQ #GPLInProprietarySystem](https://www.gnu.org/licenses/gpl-faq.html#GPLInProprietarySystem))**:
+   > *"Pipes, sockets and command-line arguments are the communication mechanisms normally used between two separate programs... But if the semantics of the communication are intimate enough, exchanging complex internal data structures, that too could be a basis to consider the two parts as combined into a larger program."*
+3. **Mere Aggregation ([GPL FAQ #MereAggregation](https://www.gnu.org/licenses/gpl-faq.html#MereAggregation))**:
+   > *"An 'aggregate' consists of a number of separate programs, distributed on the same compilation or distribution medium... If the two programs remain well separated, like the compiler and the kernel, then it is an aggregate."*
 
-### L4 — User-Supplied Tool
-- **Obligations**: The agent does not distribute the worker. The user compiles or downloads the `mutagen-worker` binary.
-- **Technical Cost**: Very High (complex UX/setup).
-- **Legal Confidence**: Critical (highest possible safety).
-- **Recommendation**: High, but bad UX.
+### Evaluation of Options (L1–L5)
 
-### L5 — Permissive Alternative
-- **Obligations**: Use an MIT/Apache alternative like `esp_extractor` (Rust).
-- **Technical Cost**: Very High (incomplete Skyrim SE/AE coverage, writing is unsupported).
-- **Legal Confidence**: Highest (permissive).
-- **Recommendation**: Rejected due to lack of mature API.
+- **L1 — Direct Linking (In-Process / NuGet Reference)**:
+  Direct linking likely makes GPL obligations relevant to distribution of the combined work. The distributed combined binary could not be offered under MIT alone without fulfilling GPL source obligations.
+  *Verdict: REJECTED.*
+
+- **L2 — External Process (Same Repository, Separate Executable via JSON IPC)**:
+  Process separation via exec and pipes is evidence in favor of separate-program treatment, **NOT** a legal safe harbor. Because communication semantics also matter, restricting IPC to a minimal, typed JSON protocol with bounded scalars strengthens the separate-program characterization. However, distributing both binaries together on the same release medium introduces questions under "mere aggregation" vs. "combined work" doctrines.
+  *Verdict: LEGAL_REVIEW_REQUIRED.*
+
+- **L3 — Separately Maintained GPL Adapter (Separate Repository & Package)**:
+  Maintaining the GPL worker in a distinct, explicitly GPL-3.0 repository improves provenance and clarity of obligations, ensuring the MIT repository contains zero copyleft source code. However, repository separation does not by itself decide whether two programs distributed or used together form a single combined work.
+  *Verdict: TECHNICAL PREFERENCE / LEGAL_REVIEW_REQUIRED.*
+
+- **L4 — User-Supplied Tool**:
+  The orchestrator acts purely as a client to a user-provided or externally installed tool. This avoids distributing the GPL worker from this project, reducing project-side distribution obligations; this is not a legal safe harbor, but minimizes distribution touchpoints.
+  *Verdict: HIGH COMPLEXITY / UX BLOCKER.*
+
+- **L5 — Permissive Alternatives**:
+  - `esp_extractor` (Rust, MIT OR Apache-2.0, v0.8.1): Capable within its focused domain of string extraction and translation file application/writing, but general authoring and record coverage is much smaller than Mutagen.
+  - `tes4py` (Python, BSD-2-Clause): A legacy parser targeting Oblivion (TES4); not a mature Skyrim SE/AE alternative.
+  - *Verdict: Insufficient coverage for comprehensive plugin inspection/authoring.*
 
 ---
 
 ## License Decision Matrix
 
-| Option | Linking | Distributed Together | Repo License Impact | Technical Cost | Legal Confidence | Recommendation |
+| Option | Linking / Transport | Distributed Together | Technical Separation | License-Compliance Complexity | Legal Determination | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| **L1** | Direct | Yes | Contaminates (must be GPL) | Low | High (GPL) | **REJECTED** |
-| **L2** | IPC | Yes | None (separate process) | Medium | Medium-High | **ACCEPTED WITH CAUTION** |
-| **L3** | IPC | No (separate repo) | None | High | High | **RECOMMENDED SPINE** |
-| **L4** | IPC | No | None | Very High | Critical | **UX BLOCKER** |
-| **L5** | None | N/A | None | Extreme | Critical | **API INCOMPLETE** |
-
-> [!IMPORTANT]
-> Because distributing a GPL-3.0 binary (even in a separate process) alongside an MIT application introduces legal ambiguity under the "mere aggregation" vs "combined work" GPL doctrines, this ADR declares:
-> **STATUS: LEGAL_REVIEW_REQUIRED**
-> Final selection between L2 and L3 requires formal legal verification of the distribution model before production release.
+| **L1** | Direct (in-process) | Yes | LOW | HIGH | GPL obligations apply to distribution | **REJECTED** |
+| **L2** | JSON IPC over pipes | Yes | HIGH | MEDIUM | `LEGAL_REVIEW_REQUIRED` | **FEASIBLE WITH REVIEW** |
+| **L3** | JSON IPC over pipes | No (separate repo) | HIGH | MEDIUM | `LEGAL_REVIEW_REQUIRED` | **TECHNICAL PREFERENCE** |
+| **L4** | JSON IPC over pipes | No (user-provided) | HIGH | LOW | `LEGAL_REVIEW_REQUIRED` | **UX FALLBACK** |
+| **L5** | Permissive library | N/A | N/A | LOW | Permissive (MIT/Apache) | **REJECTED (INCOMPLETE)** |
 
 ---
 
-## Architecture options
+## Architecture options & Runtime Generalization
 
-### Option A: .NET Worker Direct (Generalize ADR-002)
-- **Description**: The Python orchestrator launches a trusted .NET worker directly.
-- **Pros**: Single IPC boundary, low latency, no nested subprocesses.
-- **Cons**: Requires modifying ADR-002's launch command.
-- **Recommendation**: Preferred technical path.
+### Architecture Options Considered
 
-### Option B: Python Worker + .NET Child
-- **Description**: The orchestrator spawns a Python worker, which spawns the .NET child.
-- **Pros**: Satisfies ADR-002's Python requirement unchanged.
-- **Cons**: Nested subprocesses, complex process-tree cleanup, higher timeout/failure surface.
-- **Recommendation**: Rejected.
+1. **Option A: Direct .NET Worker Profile (Recommended Technical Model)**:
+   The orchestrator spawns a trusted `.NET` worker binary directly via standard pipes. This maintains a single process boundary, eliminates nested subprocesses, and avoids lifecycle/timeout propagation issues.
+2. **Option B: Python Worker + .NET Child Process**:
+   Spawning a Python shim worker that spawns a .NET child process. Rejected due to nested process tree management, double timeout bookkeeping, and elevated risk of orphaned processes.
 
-### Option C: External GPL Tool Adapter
-- **Description**: The orchestrator interacts with a separately installed worker executable via registry.
-- **Pros**: Fits L3/L4 boundaries.
-- **Cons**: Extra environment check overhead.
-- **Recommendation**: Supported as a deployment variant of Option A.
+### Generalizing ADR-002 Worker Registry
 
----
-
-## Runtime generalization (ADR-002 Amendment)
-
-To support .NET workers, we propose generalizing the trusted worker registry to define **Worker Launch Profiles**:
+ADR-002 currently defines worker execution in Python-specific terms. We propose extending the trusted worker registry with typed **Worker Launch Profiles**:
 
 ```python
 class WorkerLaunchProfile:
     runtime_kind: str          # "python" | "dotnet" | "native"
-    executable_path: str       # Absolute path of trusted host (e.g. /usr/bin/dotnet)
-    args_template: list[str]   # Args list, e.g. ["-I", "-B", "{entrypoint}"]
-    entrypoint: str            # Absolute path to DLL or script
+    executable_path: str       # Configured absolute path to trusted host/binary
+    args_template: list[str]   # Arguments list template (e.g. ["-I", "-B", "{entrypoint}"])
+    entrypoint: str            # Absolute path to script or assembly
     environment_allowlist: list[str]
     cwd_policy: str
 ```
 
-- For Python, `-I -B` remains strictly enforced.
-- For .NET, execution uses absolute executable paths (e.g., dotnet host) with no shell, keeping the deny-by-default environment.
-- The wire schemas and protocol semantics remain **Protocol Version 1**; no wire changes are needed.
+- For Python workers: `-I -B` flags remain strictly normative.
+- For .NET workers: Direct invocation of the trusted host/binary without shell, deny-by-default environment, and workspace-relative redirection.
+- **Protocol Version**: The wire schema (Request, Response, Receipt, Error) is language-agnostic. **Protocol Version 1** remains unchanged.
 
 ---
 
-## Proposed POC-MUTAGEN-001 scope
+## Proposed POC-MUTAGEN-001 Scope
 
-If approved, the next research task will be `POC-MUTAGEN-001`:
-
-- **Operation**: `INSPECT_PLUGIN_HEADER`
-- **Runtime**: .NET 9.0 worker.
-- **Input**: `input/<plugin_name>` (safe-name token only; no absolute paths).
-- **Output**: `[]` (read-only; no candidate writes).
+- **Status**: **BLOQUEADO** pending ADR-003 acceptance and legal review.
+- **Operation**: `INSPECT_PLUGIN_HEADER` (read-only).
+- **Runtime**: Out-of-process .NET worker.
+- **Package Version**: `0.54.4` candidate (to be pinned via `packages.lock.json` after approval).
+- **Target Framework**: TO BE DECIDED after supported-TFM and deployment packaging review.
+- **Input**: Single file at `input/<plugin_name>` (safe-name token only).
+- **Output**: `receipt.outputs == []` (candidate directory remains empty).
 - **API Call**: `SkyrimMod.CreateFromBinaryOverlay(filePath, release)`.
 - **Expected Metadata**:
-  - `ModKey` (identity)
+  - `ModKey` (plugin identity)
   - `HeaderVersion`
-  - `Flags` (ESM/ESL detection)
+  - `Flags` (ESM/ESL indicators)
   - `MasterFiles` (dependencies list)
-  - `Author` / `Description`
-- **Fixture Strategy**: We will use a synthetic fixture generated programmatically (e.g., via our existing POC-002 tool) to avoid distributing Bethesda files.
+  - `Author` and `Description` strings
 
 ---
 
-## Claims / Non-claims
+## Fixture Strategy: EXPERIMENT REQUIRED
 
-### Claims
-- The .NET worker is launched out-of-process via standard pipes.
-- The worker is read-only and does not touch Steam or game paths.
-- All exit codes and schemas are validated orchestrator-side.
+> [!IMPORTANT]
+> POC-002's synthetic TES4 fixture is **not** a general valid Skyrim plugin generator and must not be assumed compatible with Mutagen.
+> The fixture strategy for POC-MUTAGEN-001 is designated as **EXPERIMENT REQUIRED**.
 
-### Non-claims
-- Does not prove load order correctness or xEdit equivalence.
-- Does not authorize writing/mutating Skyrim plugins.
-- Does not claim that the worker is sandboxed at the OS level (`OS_SANDBOX` remains `NO VERIFICADO`).
-
----
-
-## Supply Chain & Security
-
-- **Pinning**: All NuGet dependencies will use locked mode (`--locked-mode` via `packages.lock.json`).
-- **Target SDK**: .NET 9.0 SDK.
-- **CI**: Runs on Windows and Linux runners with the dotnet toolchain installed.
+Requirements for a future Mutagen test fixture:
+1. Must be author-owned or generated via clean-room tooling;
+2. Must be explicitly redistributable under the repository license;
+3. Must document provenance and SHA-256 integrity hash;
+4. Must be validated as parseable by Mutagen;
+5. Must not use or distribute proprietary Bethesda master files (`Skyrim.esm`, DLCs, Creation Club content);
+6. Must not claim that POC-002 synthetic tests prove Mutagen compatibility.
 
 ---
 
-## Open questions
+## Claims and Non-Claims
 
-1. Should the C# worker compile as a self-contained executable to avoid needing a pre-installed .NET 9.0 runtime on the user's host?
-2. How does `CreateFromBinaryOverlay` handle corrupt/truncated files, and does it throw deterministic exceptions we can map to `INVALID_RESPONSE` or `PROCESS_FAILED`?
+### Future Evidence Claims (if implemented)
+- Demonstrates out-of-process .NET worker launch and execution under ADR-002 protocol v1.
+- Demonstrates single-file overlay parsing of a controlled, non-Bethesda fixture.
+- Demonstrates receipt generation and orchestrator-side verification without candidate writes.
+
+### Explicit Non-Claims
+- Does not demonstrate validity of arbitrary real-world Skyrim plugins.
+- Does not demonstrate load order correctness, winning overrides, or LinkCache resolution.
+- Does not demonstrate in-game, Creation Kit, or xEdit compatibility.
+- Does not demonstrate OS-level sandboxing (`OS_SANDBOX` remains `NO VERIFICADO`).
 
 ---
 
-## STOP Conditions
+## Recommendation & Legal Status
 
-- **STOP** if NuGet dependencies introduce transitive copyleft licenses other than GPL-compatible ones (e.g. AGPL).
-- **STOP** if `CreateFromBinaryOverlay` attempts background Steam registry lookups that cannot be disabled.
-- **STOP** if legal counsel rejects L2/L3 process separation for distribution.
+### Technical Preference
+**L3 (Separately maintained GPL worker repository) + Option A (Direct typed IPC launch profile)**.
+
+### Legal Authorization
+**NOT GRANTED. Status: `LEGAL_REVIEW_REQUIRED`.**
+Formal legal review must evaluate the distribution model (L2 vs. L3 vs. L4) before any productive or research packaging occurs.
+
+---
+
+## Acceptance Criteria for ADR-003
+
+1. Complete review of the GNU GPL FAQ citations and separate-program boundaries.
+2. Formal resolution of the distribution model (L2 vs L3).
+3. Agreement on the Worker Launch Profile abstraction generalizing ADR-002.
+4. Definition of a validated clean-room fixture strategy.

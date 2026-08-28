@@ -24,8 +24,8 @@ c206dd7d4b2083a125c870a5604564428cf38abc59d9472d77e9c381d2dfaad4  ./docs/researc
 ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/research/problem-definition.md
 13aa51e639c698feff0773a95b76c300b3887910aa13a802176c6027c39cb64d  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
-01d44cd57858d32e8e46cd2f605a045209d5ed4c55c0d78d1a1b2ddc70c856f3  ./docs/roadmap.md
-1302721a8be9cf55a2bf09b9064284a3e30cecbd819b3f170f694c226a6ab121  ./docs/status.md
+a482e87d8528e069e08fa45c08e1688ba2ed920995adaa1744ca7547e5c768c7  ./docs/roadmap.md
+1b52dcc2291746facf47ebe2a26b7c6b0c3f84848fb5664597a640a80a5e4f54  ./docs/status.md
 839b3769c6266e0963bbdd502bb09cab631851638569cadba4460c4d5aef2533  ./pyproject.toml
 886dbf87e0b5e30c772211f90598e7ac8211bcbdafe9bcf20f7914f9305c0fa1  ./research/poc_002/README.md
 be7dc8935aff5f2aff30d7737dd78900c53bd4d258f7da44531d869655a24a78  ./research/poc_002/capability.py
