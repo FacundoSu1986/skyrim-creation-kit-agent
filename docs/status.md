@@ -19,13 +19,14 @@ VIABLE WITH LIMITATIONS
 
 - ADR-001: `ACCEPTED` (2026-08-25).
 - ADR-002 — isolated worker IPC protocol and transactional boundaries: `ACCEPTED` (2026-08-25).
+- ADR-003 — Mutagen runtime and license boundary: `PROPOSED` (2026-08-28).
 - Hybrid orchestrator with headless-first primary path.
 - Acceptance authorizes the architecture contract only; no IPC implementation exists yet. The next work item is POC-IPC-001, which must implement the accepted contract under its own evidence rules (`OS_SANDBOX` remains NO VERIFICADO).
 
 ## Not implemented / not verified
 
 - general real-plugin writer;
-- Mutagen worker;
+- Mutagen worker (BLOQUEADO por ADR-003 / license-runtime decision);
 - PapyrusCompiler adapter;
 - xEdit validator;
 - Creation Kit UI automation;
