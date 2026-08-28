@@ -1,5 +1,4 @@
 import { SiteShell } from "@/components/site-shell";
-import { StatusBadge } from "@/components/status-badge";
 import { getDocumentBySlug, getLicenses } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -29,11 +28,28 @@ export default async function LicensingPage() {
               <tr key={row.id}>
                 <td>
                   <div className="font-medium">{row.component}</div>
-                  {row.legalReviewRequired ? (
-                    <div className="mt-2">
-                      <StatusBadge status="LEGAL_REVIEW_REQUIRED" />
-                    </div>
-                  ) : null}
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    {row.legalReviewRequired ? (
+                      <div>
+                        <span className="badge badge-legal" title="Component license requires legal review">
+                          Component: Legal review
+                        </span>
+                      </div>
+                    ) : null}
+                    {row.distributionAuthorizationStatus === "LEGAL_REVIEW_REQUIRED" ? (
+                      <div>
+                        <span className="badge badge-legal" title="Distribution/integration model requires legal authorization">
+                          Distribution: Legal review
+                        </span>
+                      </div>
+                    ) : row.distributionAuthorizationStatus === "DESCARTADO" ? (
+                      <div>
+                        <span className="badge badge-rejected" title="Distribution is forbidden">
+                          Distribution: Forbidden
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
                 </td>
                 <td>{row.license}</td>
                 <td className="text-[var(--muted)]">{row.intendedUse}</td>

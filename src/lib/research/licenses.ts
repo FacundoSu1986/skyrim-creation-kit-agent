@@ -1,4 +1,16 @@
-export const licenseRows = [
+export interface LicenseRow {
+  component: string;
+  license: string;
+  intendedUse: string;
+  modification: string;
+  distribution: string;
+  risk: string;
+  legalReviewRequired: boolean;
+  distributionAuthorizationStatus: string;
+  notes: string;
+}
+
+export const licenseRows: LicenseRow[] = [
   {
     component: "Skyrim Special Edition / Anniversary Edition",
     license: "Proprietary Bethesda / ZeniMax game EULA",
@@ -7,6 +19,7 @@ export const licenseRows = [
     distribution: "Forbidden.",
     risk: "Critical if assets or executables are redistributed",
     legalReviewRequired: true,
+    distributionAuthorizationStatus: "DESCARTADO",
     notes: "LEGAL_REVIEW_REQUIRED for any fixture that is a real Bethesda plugin or script header.",
   },
   {
@@ -17,6 +30,7 @@ export const licenseRows = [
     distribution: "Forbidden. Never bundle CreationKit.exe, steam_api, or CK resources.",
     risk: "Critical — in-process hooks and patches may breach 1.C",
     legalReviewRequired: true,
+    distributionAuthorizationStatus: "DESCARTADO",
     notes:
       "Executing the official tool the user already licensed is different from linking against it or distributing it. Those three acts are not equivalent.",
   },
@@ -28,6 +42,7 @@ export const licenseRows = [
     distribution: "Forbidden.",
     risk: "High",
     legalReviewRequired: true,
+    distributionAuthorizationStatus: "DESCARTADO",
     notes: "Community CK installs juggle steam_api64.dll. This project must not automate DLL swapping.",
   },
   {
@@ -38,6 +53,7 @@ export const licenseRows = [
     distribution: "Do not redistribute CKPE binaries or proprietary pak/d3dcompiler files.",
     risk: "Critical legal overlay (LGPL + CK EULA + DLL proxy)",
     legalReviewRequired: true,
+    distributionAuthorizationStatus: "LEGAL_REVIEW_REQUIRED",
     notes:
       "Two licenses apply at once: CKPE's LGPL and Bethesda's prohibition on modifying the Editor. That conflict is the highest legal risk.",
   },
@@ -49,8 +65,9 @@ export const licenseRows = [
     distribution: "Source must be offered if a linked binary is distributed.",
     risk: "High product-license impact, not a Bethesda EULA issue",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "LEGAL_REVIEW_REQUIRED",
     notes:
-      "houseCARL already accepted GPL-3.0-only for this reason. A MIT/Apache core cannot statically link Mutagen.",
+      "houseCARL already accepted GPL-3.0-only for this reason. A MIT/Apache core cannot statically link Mutagen. ADR-003 L3 distribution model requires legal authorization.",
   },
   {
     component: "xEdit / SSEEdit",
@@ -60,6 +77,7 @@ export const licenseRows = [
     distribution: "Do not bundle the executable. Linking as a library is not the public API.",
     risk: "Medium (license inconsistency + script execution)",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "NOT_APPLICABLE",
     notes: "Executing an external MPL tool is generally cleaner than linking. Confirm MPL 2.0 vs 1.1 before any code reuse.",
   },
   {
@@ -70,6 +88,7 @@ export const licenseRows = [
     distribution: "Do not bundle.",
     risk: "Medium if linked; low if executed as a separate app",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "NOT_APPLICABLE",
     notes: "Not needed for Gate 1 or MVP authoring.",
   },
   {
@@ -80,6 +99,7 @@ export const licenseRows = [
     distribution: "Only after LICENSE file is read.",
     risk: "Medium until C# esper license is confirmed",
     legalReviewRequired: true,
+    distributionAuthorizationStatus: "LEGAL_REVIEW_REQUIRED",
     notes: "LEGAL_REVIEW_REQUIRED on matortheeternal/esper C#. Do not link yet.",
   },
   {
@@ -90,6 +110,7 @@ export const licenseRows = [
     distribution: "Forbidden.",
     risk: "High if fixtures include Bethesda sources",
     legalReviewRequired: true,
+    distributionAuthorizationStatus: "DESCARTADO",
     notes: "Spooky's toolkit correctly warns: do not commit .psc headers.",
   },
   {
@@ -100,6 +121,7 @@ export const licenseRows = [
     distribution: "Permissive.",
     risk: "Low license; high operational if used against CK",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "NOT_APPLICABLE",
     notes: "Preferred UIA library if PoC-001 shows useful controls.",
   },
   {
@@ -110,6 +132,7 @@ export const licenseRows = [
     distribution: "Permissive if BSD confirmed.",
     risk: "Low license",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "NOT_APPLICABLE",
     notes: "Confirm LICENSE file when adding the dependency. Not needed until PoC-001.",
   },
   {
@@ -120,6 +143,7 @@ export const licenseRows = [
     distribution: "Do not adopt.",
     risk: "Abandoned",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "DESCARTADO",
     notes: "DESCARTADO as a new dependency.",
   },
   {
@@ -130,6 +154,7 @@ export const licenseRows = [
     distribution: "Source of this desk only.",
     risk: "Low",
     legalReviewRequired: false,
+    distributionAuthorizationStatus: "NOT_APPLICABLE",
     notes:
       "Do not choose MIT for a future Mutagen-linked worker. A split license (permissive planner + GPL worker) is a live option.",
   },

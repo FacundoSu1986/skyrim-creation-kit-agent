@@ -40,7 +40,7 @@ Verify a pinned allowlisted script with `-script -autoexit`, explicit completion
 
 ### POC-IPC-001 — isolated worker protocol
 
-**Status:** **PASS**. Implement the minimal proof defined by [ADR-002](ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) (accepted 2026-08-25).
+**Status:** **PASS**. The minimal proof defined by [ADR-002](ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) (accepted 2026-08-25) was implemented and validated by POC-IPC-001 (`OS_SANDBOX` remains `NO VERIFICADO`).
 
 ### POC-MUTAGEN-001 — Mutagen read-only inspector
 

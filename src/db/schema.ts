@@ -70,6 +70,9 @@ export const licenseEntries = pgTable("research_license_entries", {
   distribution: text("distribution").notNull(),
   risk: text("risk").notNull(),
   legalReviewRequired: boolean("legal_review_required").notNull(),
+  distributionAuthorizationStatus: text("distribution_authorization_status")
+    .notNull()
+    .default("NOT_APPLICABLE"),
   notes: text("notes").notNull(),
   sortOrder: integer("sort_order").notNull(),
 });

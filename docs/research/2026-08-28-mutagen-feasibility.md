@@ -118,11 +118,13 @@ The Mutagen worker contract strictly forbids intentional interaction with ambien
 
 ## 8. External Source Record
 
-- **TITLE**: Mutagen GitHub Repository
+- **TITLE**: Mutagen Release 0.54.4
   - **PUBLISHER**: Mutagen-Modding
-  - **URL**: https://github.com/Mutagen-Modding/Mutagen
+  - **URL**: https://github.com/Mutagen-Modding/Mutagen/tree/0.54.4
+  - **VERSION**: 0.54.4
+  - **COMMIT**: 0188012c607ce8bb283d2704400d37737f089134
   - **DATE ACCESSED**: 2026-08-28
-  - **CLAIM SUPPORTED**: GPL-3.0 license, `0.54.4` release, `CreateFromBinaryOverlay` signature.
+  - **CLAIM SUPPORTED**: GPL-3.0 license, `0.54.4` release, `CreateFromBinaryOverlay` signature, supported TFMs (net8.0, net9.0).
 
 - **TITLE**: GNU General Public License Frequently Asked Questions
   - **PUBLISHER**: Free Software Foundation (FSF)
