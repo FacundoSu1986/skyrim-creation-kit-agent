@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-08-25
+Updated: 2026-08-28
 
 ## Overall
 
@@ -14,6 +14,8 @@ VIABLE WITH LIMITATIONS
 - 44/44 unit/security tests on the supplied implementation (initial validated baseline: 43 tests; +1 adversarial regression for policy-rejection evidence semantics).
 - Candidate workspace/path containment.
 - Fail-closed receipts and immutable-original hash invariant.
+- POC-IPC-001 is implemented and PASS as the validated isolated-worker protocol/process research baseline.
+- POC-IPC-001 PASS demonstrates the protocol/process-isolation contract only; it does NOT demonstrate OS-level sandboxing. `OS_SANDBOX` remains `NO VERIFICADO`.
 
 ## Accepted architecture
 
@@ -21,7 +23,6 @@ VIABLE WITH LIMITATIONS
 - ADR-002 — isolated worker IPC protocol and transactional boundaries: `ACCEPTED` (2026-08-25).
 - ADR-003 — Mutagen runtime and license boundary: `PROPOSED` (2026-08-28).
 - Hybrid orchestrator with headless-first primary path.
-- Acceptance authorizes the architecture contract only; no IPC implementation exists yet. The next work item is POC-IPC-001, which must implement the accepted contract under its own evidence rules (`OS_SANDBOX` remains NO VERIFICADO).
 
 ## Not implemented / not verified
 
@@ -32,8 +33,5 @@ VIABLE WITH LIMITATIONS
 - Creation Kit UI automation;
 - CKPE bridge;
 - LLM planner;
-- in-game runtime validation.
-
-## Known IPC research status
-
-The previously reviewed subprocess-IPC prototypes remain `CHANGES_REQUIRED`. Their useful findings should inform a future ADR/POC-IPC, but the reviewed code is intentionally not imported as passing implementation.
+- in-game runtime validation;
+- OS-level sandboxing / filesystem confinement (`OS_SANDBOX`: `NO VERIFICADO`).

@@ -15,7 +15,7 @@ Key findings:
 2. Direct linking (L1) likely makes GPL obligations relevant to distribution of the combined work.
 3. Process separation via exec and pipes (L2/L3) is evidence in favor of separate-program treatment under GNU GPL guidance, but is not a legal safe harbor. Communication semantics and distribution packaging also matter.
 4. Repository separation (L3) improves provenance and compliance, but does not itself decide whether programs form one combined work.
-5. ADR-002's launch model can be generalized via typed Worker Launch Profiles without altering wire Protocol Version 1 schemas.
+5. ADR-002's launch model can be extended via closed-world typed worker profiles (`PYTHON_ISOLATED_V1`, `DOTNET_MUTAGEN_READONLY_V1`) without altering wire Protocol Version 1 schemas or introducing generic command runners.
 6. The legal determination remains `LEGAL_REVIEW_REQUIRED`.
 
 ---
@@ -88,37 +88,35 @@ The repository is MIT-licensed. Mutagen is licensed under GPL-3.0-only. MIT code
 
 ## 5. Architectural Generalization of ADR-002
 
-ADR-002 currently specifies a Python command line (`python -I -B`). We propose introducing typed **Worker Launch Profiles** on the trusted orchestrator side:
+ADR-002 currently specifies a Python command line (`python -I -B`). To support non-Python workers without introducing generic command execution, the model uses closed-world typed worker profiles:
 
-```python
-class WorkerLaunchProfile:
-    runtime_kind: str          # "python" | "dotnet" | "native"
-    executable_path: str       # Absolute path of trusted host/binary
-    args_template: list[str]   # Args list template (e.g. ["-I", "-B", "{entrypoint}"])
-    entrypoint: str            # Absolute path to assembly or script
-    environment_allowlist: list[str]
-    cwd_policy: str
-```
-
-- For Python, `-I -B` remains strictly enforced.
-- For .NET, direct invocation without shell and with deny-by-default environment.
-- The wire schemas and protocol semantics remain **Protocol Version 1**; no wire changes are needed.
+- `PYTHON_ISOLATED_V1`: Deterministic `<trusted absolute python> -I -B <trusted worker entry> --job-root <derived absolute job dir>`.
+- `DOTNET_MUTAGEN_READONLY_V1`: Deterministic trusted `.NET` host or self-contained binary execution without shell, deny-by-default environment, and fixed operation set (`INSPECT_PLUGIN_HEADER`).
+- Wire schemas, error taxonomy, and correlation rules remain **Protocol Version 1**.
+- Generic command execution (`RUN_TOOL`, `EXECUTE_COMMAND`, dynamic `argv` templates) is strictly forbidden.
 
 ---
 
-## 6. Proposed POC-MUTAGEN-001 Design
+## 6. Ambient Host State Contract (No Overclaim)
+
+The Mutagen worker contract strictly forbids intentional interaction with ambient Steam files, Skyrim Data directories, or the Windows registry. This is an application-level contract between cooperating components, not an OS sandbox (`OS_SANDBOX` remains `NO VERIFICADO`).
+
+---
+
+## 7. Proposed POC-MUTAGEN-001 Design
 
 - **Operation**: `INSPECT_PLUGIN_HEADER` (Read-only)
-- **Runtime**: Out-of-process .NET worker.
+- **Profile**: `DOTNET_MUTAGEN_READONLY_V1`
 - **Candidate Package Version**: `0.54.4` (to be locked via `packages.lock.json`).
 - **Target Framework**: TO BE DECIDED after supported-TFM/deployment review.
+- **Transitive License Inventory**: `NOT YET RECORDED (PENDING DEPENDENCY REVIEW)`.
 - **Inputs**: `input/<plugin_name>` (safe-name token only).
 - **Outputs**: `[]` (no candidate writes).
 - **Fixture Strategy**: **EXPERIMENT REQUIRED**. Requires an author-owned, redistributable clean-room fixture with documented provenance. POC-002 synthetic fixture cannot be assumed compatible.
 
 ---
 
-## 7. External Source Record
+## 8. External Source Record
 
 - **TITLE**: Mutagen GitHub Repository
   - **PUBLISHER**: Mutagen-Modding

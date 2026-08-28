@@ -12,6 +12,7 @@ cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
+aa6130ca348ec0964dfec0adf0d15377f6c1358a57fd95f4077ca3d890c01bbc  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md
 ec381d6e48340621ddcc581357ba19eacef8e1d69173d07d73240ff29c75eff9  ./docs/research/capability-matrix.md
@@ -25,7 +26,7 @@ ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/researc
 13aa51e639c698feff0773a95b76c300b3887910aa13a802176c6027c39cb64d  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
 a482e87d8528e069e08fa45c08e1688ba2ed920995adaa1744ca7547e5c768c7  ./docs/roadmap.md
-1b52dcc2291746facf47ebe2a26b7c6b0c3f84848fb5664597a640a80a5e4f54  ./docs/status.md
+be0c535370a5aa61ee773be47491707a3dcb436b4d90f8cacc77708e6b66677c  ./docs/status.md
 839b3769c6266e0963bbdd502bb09cab631851638569cadba4460c4d5aef2533  ./pyproject.toml
 886dbf87e0b5e30c772211f90598e7ac8211bcbdafe9bcf20f7914f9305c0fa1  ./research/poc_002/README.md
 be7dc8935aff5f2aff30d7737dd78900c53bd4d258f7da44531d869655a24a78  ./research/poc_002/capability.py

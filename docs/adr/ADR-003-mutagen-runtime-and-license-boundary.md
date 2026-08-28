@@ -15,14 +15,15 @@ This ADR defines the technical options, license implications, and runtime bounda
 ## Problem statement
 
 1. **Licensing Boundary**: How can an MIT-licensed project interact with a GPL-3.0 library upon distribution without violating or misrepresenting licensing obligations?
-2. **Runtime Generalization**: ADR-002 specifies a Python-only worker launch command (`python -I -B`). A .NET-based worker requires extending the trusted worker launch profile.
-3. **Hermetic Execution**: Ensuring that Mutagen execution is fail-closed, read-only, workspace-contained, and isolated from ambient host state (Steam, Skyrim Data directory, registry).
+2. **Runtime Generalization**: ADR-002 specifies a Python-only worker launch command (`python -I -B`). A .NET-based worker requires extending the trusted worker launch profile while preventing the introduction of generic command execution.
+3. **Ambient Host State & Hermetic Execution**: Ensuring that Mutagen execution is fail-closed, read-only, workspace-contained, and isolated from ambient host state (Steam, Skyrim Data directory, registry), without misrepresenting application-level boundaries as OS sandboxes.
 
 ## Current architecture constraints
 
 - **ADR-001 (§Worker boundaries)**: Establishes that process isolation is an architectural and security separation, **not** a legal safe harbor regarding GPL obligations.
 - **ADR-002 (§Process and transport model)**: Specifies `<trusted absolute python> -I -B <trusted worker entry> --job-root <derived absolute job dir>`. The `-I -B` flags are normative for Python workers.
 - **ADR-002 (§Success contract & Workspace ownership)**: Mandates that exit code must be zero, schema must validate closed-world, assertions must pass, and workers may only read `input/`/`originals/` and write to `candidates/`/`temp/`.
+- **ADR-002 (§D16 Process isolation is not a sandbox)**: Worker code is trusted code running with host account privileges. OS confinement is a separate future boundary (`OS_SANDBOX: NO VERIFICADO`).
 
 ---
 
@@ -93,32 +94,61 @@ To evaluate how process separation and distribution models affect licensing obli
 
 ---
 
-## Architecture options & Runtime Generalization
+## Architecture: Closed-World Worker Launch Profiles
 
-### Architecture Options Considered
+To accommodate non-Python workers without normalizing generic command execution or arbitrary shell runners, ADR-002's execution model must be extended strictly via **Closed-World Typed Worker Profiles**.
 
-1. **Option A: Direct .NET Worker Profile (Recommended Technical Model)**:
-   The orchestrator spawns a trusted `.NET` worker binary directly via standard pipes. This maintains a single process boundary, eliminates nested subprocesses, and avoids lifecycle/timeout propagation issues.
-2. **Option B: Python Worker + .NET Child Process**:
-   Spawning a Python shim worker that spawns a .NET child process. Rejected due to nested process tree management, double timeout bookkeeping, and elevated risk of orphaned processes.
+### Principle: No Generic Command Execution
 
-### Generalizing ADR-002 Worker Registry
+The system does **NOT** execute arbitrary commands or dynamic CLI templates.
+- Requests select an `operation` name (e.g. `INSPECT_PLUGIN_HEADER`).
+- Requests **NEVER** supply or control `runtime`, `executable`, `entrypoint`, `arguments`, `command`, `cwd`, or `environment`.
+- Dispatching flow is strictly: `Request.operation` → capability router → trusted worker registry → fixed closed profile.
 
-ADR-002 currently defines worker execution in Python-specific terms. We propose extending the trusted worker registry with typed **Worker Launch Profiles**:
+### Prohibited Abstractions
 
-```python
-class WorkerLaunchProfile:
-    runtime_kind: str          # "python" | "dotnet" | "native"
-    executable_path: str       # Configured absolute path to trusted host/binary
-    args_template: list[str]   # Arguments list template (e.g. ["-I", "-B", "{entrypoint}"])
-    entrypoint: str            # Absolute path to script or assembly
-    environment_allowlist: list[str]
-    cwd_policy: str
-```
+The following patterns are **permanently prohibited** from the worker profile model:
+- `runtime_kind: str` (open-ended string)
+- `args_template: list[str]` (dynamic argument substitution)
+- Arbitrary executable paths or entrypoints supplied dynamically
+- Generic native or CLI worker profiles (`RUN_TOOL`, `EXECUTE_COMMAND`, `RUN_PROCESS`, `COMMAND`, `CLI_OPERATION`)
+- `shell=True` under any condition
 
-- For Python workers: `-I -B` flags remain strictly normative.
-- For .NET workers: Direct invocation of the trusted host/binary without shell, deny-by-default environment, and workspace-relative redirection.
-- **Protocol Version**: The wire schema (Request, Response, Receipt, Error) is language-agnostic. **Protocol Version 1** remains unchanged.
+### Closed Profile Specifications
+
+#### 1. `PYTHON_ISOLATED_V1`
+- **Purpose**: Python-based isolated worker execution (baseline from ADR-002 / POC-IPC-001).
+- **Deterministic Command**: `<trusted absolute python> -I -B <trusted worker entry> --job-root <derived absolute job dir>`
+- **Mandatory Flags**: `-I` (isolated mode, ignores user site-packages and `PYTHON*` vars) and `-B` (no bytecode cache writes).
+- **Environment**: Deny-by-default allowlist (`SYSTEMROOT` + `TEMP`/`TMP` redirected to job workspace on Windows; `TMPDIR` on POSIX; `PATH` absent).
+- **Execution**: `shell=False`, fixed trusted executable and entrypoint from registry.
+
+#### 2. `DOTNET_MUTAGEN_READONLY_V1`
+- **Purpose**: .NET-based read-only plugin inspection.
+- **Deterministic Command**: Sourced strictly from trusted configuration post-packaging experiment:
+  - Framework-dependent: `<trusted absolute dotnet> <trusted worker dll> --job-root <derived absolute job dir>`
+  - Self-contained binary: `<trusted absolute worker binary> --job-root <derived absolute job dir>`
+- **Environment**: Deny-by-default allowlist with standard system roots and temp redirection.
+- **Execution**: `shell=False`, fixed trusted executable and worker assembly/binary from registry.
+- **Operations Supported**: Strictly closed set (`INSPECT_PLUGIN_HEADER`).
+- **Wire Protocol**: Exact **Protocol Version 1** JSON schema (identical Request, Response, Receipt, and Error semantics).
+
+---
+
+## Ambient Host State & Execution Contract (No Overclaim)
+
+> [!IMPORTANT]
+> **Normative Execution Contract**:
+> The Mutagen operation contract **MUST NOT** intentionally depend on or access ambient Steam state, Skyrim Data directories, load-order state, or the Windows registry.
+> The worker must receive only the trusted derived workspace and typed operation inputs required for `INSPECT_PLUGIN_HEADER`.
+>
+> **Security Reality**:
+> This is an **application-level execution contract between well-behaved components**.
+> It is **NOT** OS-enforced filesystem or registry confinement.
+> A defective or compromised worker process runs with the host user account's OS privileges and could theoretically access anything that account can access.
+> `OS_SANDBOX` remains **NO VERIFICADO**.
+
+The future POC can demonstrate only that the *intended* execution path performs no ambient discovery; it cannot demonstrate that the process is prevented by the OS from doing so.
 
 ---
 
@@ -126,9 +156,10 @@ class WorkerLaunchProfile:
 
 - **Status**: **BLOQUEADO** pending ADR-003 acceptance and legal review.
 - **Operation**: `INSPECT_PLUGIN_HEADER` (read-only).
-- **Runtime**: Out-of-process .NET worker.
-- **Package Version**: `0.54.4` candidate (to be pinned via `packages.lock.json` after approval).
+- **Worker Profile**: `DOTNET_MUTAGEN_READONLY_V1`.
+- **Candidate Package Version**: `0.54.4` (candidate to be pinned via `packages.lock.json` upon approval).
 - **Target Framework**: TO BE DECIDED after supported-TFM and deployment packaging review.
+- **Transitive License Inventory**: `NOT YET RECORDED (PENDING DEPENDENCY REVIEW)`.
 - **Input**: Single file at `input/<plugin_name>` (safe-name token only).
 - **Output**: `receipt.outputs == []` (candidate directory remains empty).
 - **API Call**: `SkyrimMod.CreateFromBinaryOverlay(filePath, release)`.
@@ -160,7 +191,7 @@ Requirements for a future Mutagen test fixture:
 ## Claims and Non-Claims
 
 ### Future Evidence Claims (if implemented)
-- Demonstrates out-of-process .NET worker launch and execution under ADR-002 protocol v1.
+- Demonstrates out-of-process .NET worker launch under the closed `DOTNET_MUTAGEN_READONLY_V1` profile.
 - Demonstrates single-file overlay parsing of a controlled, non-Bethesda fixture.
 - Demonstrates receipt generation and orchestrator-side verification without candidate writes.
 
@@ -175,7 +206,7 @@ Requirements for a future Mutagen test fixture:
 ## Recommendation & Legal Status
 
 ### Technical Preference
-**L3 (Separately maintained GPL worker repository) + Option A (Direct typed IPC launch profile)**.
+**L3 (Separately maintained GPL worker repository) + `DOTNET_MUTAGEN_READONLY_V1` Profile**.
 
 ### Legal Authorization
 **NOT GRANTED. Status: `LEGAL_REVIEW_REQUIRED`.**
@@ -187,5 +218,5 @@ Formal legal review must evaluate the distribution model (L2 vs. L3 vs. L4) befo
 
 1. Complete review of the GNU GPL FAQ citations and separate-program boundaries.
 2. Formal resolution of the distribution model (L2 vs L3).
-3. Agreement on the Worker Launch Profile abstraction generalizing ADR-002.
+3. Agreement on the Closed-World Worker Launch Profile specification generalizing ADR-002.
 4. Definition of a validated clean-room fixture strategy.
