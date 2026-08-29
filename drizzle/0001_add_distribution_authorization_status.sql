@@ -1,2 +1,8 @@
 CREATE TYPE "public"."distribution_authorization_status" AS ENUM('LEGAL_REVIEW_REQUIRED', 'DESCARTADO', 'NOT_APPLICABLE');--> statement-breakpoint
-ALTER TABLE "research_license_entries" ADD COLUMN "distribution_authorization_status" "distribution_authorization_status" DEFAULT 'NOT_APPLICABLE' NOT NULL;
+ALTER TABLE "research_license_entries" ADD COLUMN "distribution_authorization_status" "distribution_authorization_status";--> statement-breakpoint
+UPDATE "research_license_entries" SET "distribution_authorization_status" = 'LEGAL_REVIEW_REQUIRED' WHERE "component" IN ('Mutagen / Synthesis / Spriggit', 'Creation Kit Platform Extended', 'esper / esper-js / esper-cpp / balsa');--> statement-breakpoint
+UPDATE "research_license_entries" SET "distribution_authorization_status" = 'DESCARTADO' WHERE "component" IN ('Skyrim Special Edition / Anniversary Edition', 'Creation Kit (Steam 1946180)', 'Steam / steam_api64.dll', 'PapyrusCompiler.exe / TESV_Papyrus_Flags.flg / vanilla .psc', 'WinAppDriver');--> statement-breakpoint
+UPDATE "research_license_entries" SET "distribution_authorization_status" = 'NOT_APPLICABLE' WHERE "component" IN ('xEdit / SSEEdit', 'LOOT / libloot', 'FlaUI', 'pywinauto', 'This research portal (Next.js app)');--> statement-breakpoint
+UPDATE "research_license_entries" SET "distribution_authorization_status" = 'LEGAL_REVIEW_REQUIRED' WHERE "distribution_authorization_status" IS NULL;--> statement-breakpoint
+ALTER TABLE "research_license_entries" ALTER COLUMN "distribution_authorization_status" SET DEFAULT 'NOT_APPLICABLE';--> statement-breakpoint
+ALTER TABLE "research_license_entries" ALTER COLUMN "distribution_authorization_status" SET NOT NULL;

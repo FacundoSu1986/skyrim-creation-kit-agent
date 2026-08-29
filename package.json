@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "npx tsx src/db/migrate.ts",
+    "db:adopt-existing": "npx tsx src/db/adopt.ts"
   },
   "dependencies": {
     "dotenv": "17.4.2",
