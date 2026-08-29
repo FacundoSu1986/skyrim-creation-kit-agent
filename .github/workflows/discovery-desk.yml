@@ -37,7 +37,27 @@ jobs:
       - name: Start PostgreSQL container
         run: |
           docker run -d --name test-postgres -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=postgres postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
-          until docker exec test-postgres pg_isready -U postgres; do sleep 1; done
+          READY=false
+          for i in $(seq 1 60); do
+            if docker exec test-postgres pg_isready -U postgres >/dev/null 2>&1; then
+              echo "PostgreSQL is ready (attempt $i)."
+              READY=true
+              break
+            fi
+            if ! docker inspect -f '{{.State.Running}}' test-postgres 2>/dev/null | grep -q '^true$'; then
+              echo "ERROR: PostgreSQL container stopped unexpectedly before becoming ready."
+              docker ps -a
+              docker logs test-postgres || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$READY" != "true" ]; then
+            echo "ERROR: PostgreSQL did not become ready within 60 seconds."
+            docker ps -a
+            docker logs test-postgres || true
+            exit 1
+          fi
       - name: Migration Lifecycle Tests (Fresh DB & Existing Pre-PR Adoption)
         run: npx tsx tests/migration-lifecycle.test.ts
       - name: Build
