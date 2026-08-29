@@ -1,0 +1,2 @@
+CREATE TYPE "public"."distribution_authorization_status" AS ENUM('LEGAL_REVIEW_REQUIRED', 'DESCARTADO', 'NOT_APPLICABLE');--> statement-breakpoint
+ALTER TABLE "research_license_entries" ADD COLUMN "distribution_authorization_status" "distribution_authorization_status" DEFAULT 'NOT_APPLICABLE' NOT NULL;

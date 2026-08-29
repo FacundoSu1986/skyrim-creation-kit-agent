@@ -1,3 +1,21 @@
+export const DISTRIBUTION_AUTHORIZATION_STATUSES = [
+  "LEGAL_REVIEW_REQUIRED",
+  "DESCARTADO",
+  "NOT_APPLICABLE",
+] as const;
+
+export type DistributionAuthorizationStatus =
+  (typeof DISTRIBUTION_AUTHORIZATION_STATUSES)[number];
+
+export function isDistributionAuthorizationStatus(
+  value: unknown,
+): value is DistributionAuthorizationStatus {
+  return (
+    typeof value === "string" &&
+    (DISTRIBUTION_AUTHORIZATION_STATUSES as readonly string[]).includes(value)
+  );
+}
+
 export interface LicenseRow {
   component: string;
   license: string;
@@ -6,7 +24,7 @@ export interface LicenseRow {
   distribution: string;
   risk: string;
   legalReviewRequired: boolean;
-  distributionAuthorizationStatus: string;
+  distributionAuthorizationStatus: DistributionAuthorizationStatus;
   notes: string;
 }
 
