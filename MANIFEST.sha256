@@ -2,7 +2,7 @@ e028774f299851e52f11b2c33e8e5130989ddfaff9e9bd593c3e41b2111d1eff  ./.github/CODE
 89c95097d181d96668223e4cfc8ea666ad1130276d9dbc57ef63fc7663902217  ./.github/ISSUE_TEMPLATE/research.yml
 f6a01dcffd70c09dca98bed81d1163e8900045925db1dae6845432bad949e3d3  ./.github/dependabot.yml
 12da2d1b18521db24e8c82bdd72f2c305dec11a78942a0eec5b5aae0d3db0484  ./.github/pull_request_template.md
-f4925659763bb59a95687d1900645c00f04d0c6c97f3a693b9c8d2251fc62925  ./.github/workflows/discovery-desk.yml
+5c21b55883781fa421a9e75a83a7990ca8304322dd0cf381729c7eabb25c5cb0  ./.github/workflows/discovery-desk.yml
 f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/workflows/poc002.yml
 5d6536ca5510ea645218519382498b9985bc98058de88c75ef8876e47d9b30d1  ./.github/workflows/poc-ipc.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
@@ -12,7 +12,7 @@ cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
-aa6130ca348ec0964dfec0adf0d15377f6c1358a57fd95f4077ca3d890c01bbc  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
+f48078955f04218998526abda758078d4ad2d380f2294105ca30792f45335ab6  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md
 ec381d6e48340621ddcc581357ba19eacef8e1d69173d07d73240ff29c75eff9  ./docs/research/capability-matrix.md

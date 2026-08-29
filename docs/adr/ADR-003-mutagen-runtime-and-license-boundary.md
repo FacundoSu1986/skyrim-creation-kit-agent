@@ -33,7 +33,7 @@ This ADR defines the technical options, license implications, and runtime bounda
 - **License**: GPL-3.0-only (per repository LICENSE file and NuGet package metadata).
 - **Candidate Stable Release**: `0.54.4` (candidate version to be pinned upon acceptance).
 - **Active Prerelease Branch**: `0.55.0-alpha.7` (under active development).
-- **Target Frameworks**: Release `0.54.4` packages support modern .NET TFMs including `net8.0` and `net9.0`. Target runtime framework is **TO BE DECIDED** following a deployment/runtime packaging review.
+- **Target Frameworks**: Official NuGet package `Mutagen.Bethesda.Skyrim` release `0.54.4` targets `net9.0` and `net10.0` (it does not target `net8.0`). Target runtime framework is **TO BE DECIDED** following a deployment/runtime packaging review.
 - **NuGet Packages**: `Mutagen.Bethesda`, `Mutagen.Bethesda.Skyrim`.
 - **Platform Support**: Cross-platform (Windows, Linux, macOS) on supported .NET runtimes.
 - **Single-file Read API**:

@@ -26,7 +26,7 @@ Key findings:
 - **License**: GPL-3.0-only (explicit LICENSE file in repository).
 - **Candidate Stable Version**: `0.54.4` (candidate release to be pinned upon acceptance).
 - **Active Prerelease Branch**: `0.55.0-alpha.7`.
-- **Target Frameworks**: Release `0.54.4` packages support `net8.0` and `net9.0`. Target runtime framework is **TO BE DECIDED** following deployment/packaging evaluation.
+- **Target Frameworks**: Official NuGet package `Mutagen.Bethesda.Skyrim` release `0.54.4` targets `net9.0` and `net10.0` (it does not target `net8.0`). Target runtime framework is **TO BE DECIDED** following deployment/packaging evaluation.
 - **Platform Support**: Cross-platform (Windows, Linux, macOS) on supported .NET runtimes.
 - **Single-File Read API**: 
   - **API Signature**: `public static SkyrimMod CreateFromBinaryOverlay(ModPath path, SkyrimRelease release, StringsReadParameters stringsParam = default)`
@@ -124,7 +124,7 @@ The Mutagen worker contract strictly forbids intentional interaction with ambien
   - **VERSION**: 0.54.4
   - **COMMIT**: 0188012c607ce8bb283d2704400d37737f089134
   - **DATE ACCESSED**: 2026-08-28
-  - **CLAIM SUPPORTED**: GPL-3.0 license, `0.54.4` release, `CreateFromBinaryOverlay` signature, supported TFMs (net8.0, net9.0).
+  - **CLAIM SUPPORTED**: GPL-3.0 license, `0.54.4` release, `CreateFromBinaryOverlay` signature, supported TFMs (net9.0, net10.0).
 
 - **TITLE**: GNU General Public License Frequently Asked Questions
   - **PUBLISHER**: Free Software Foundation (FSF)
