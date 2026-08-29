@@ -7,7 +7,10 @@ import { Pool } from "pg";
 import { adoptExistingDatabase, verifyBaselineFingerprint } from "../src/db/adopt";
 import { runMigrations } from "../src/db/migrate";
 
-const baseDatabaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || "postgresql://postgres:password@127.0.0.1:5432/postgres";
+const baseDatabaseUrl =
+  process.env.TEST_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  "postgresql://postgres:password@127.0.0.1:5432/postgres";
 
 function getDbUrl(dbName: string): string {
   const url = new URL(baseDatabaseUrl);
@@ -34,11 +37,8 @@ async function runFreshDbTest() {
   await createEmptyDatabase(dbName);
   const dbUrl = getDbUrl(dbName);
 
-  // Set env var for migration runner
-  process.env.DATABASE_URL = dbUrl;
-
-  // 1. Run migrations
-  await runMigrations();
+  // 1. Run migrations on fresh database
+  await runMigrations(dbUrl);
 
   // 2. Verify tables and enum exist
   const pool = new Pool({ connectionString: dbUrl });
@@ -65,7 +65,7 @@ async function runFreshDbTest() {
     }
 
     // 3. Verify second migration is clean no-op
-    await runMigrations();
+    await runMigrations(dbUrl);
     console.log("FRESH DB: All checks passed.");
   } finally {
     await pool.end();
@@ -84,7 +84,10 @@ async function runExistingDbAdoptionTest() {
   const pool = new Pool({ connectionString: dbUrl });
   try {
     // 1. Instantiate pre-PR schema by executing 0000_baseline.sql directly
-    const baselineSql = fs.readFileSync(path.resolve(process.cwd(), "drizzle/0000_baseline.sql"), "utf8");
+    const baselineSql = fs.readFileSync(
+      path.resolve(process.cwd(), "drizzle/0000_baseline.sql"),
+      "utf8",
+    );
     const stmts = baselineSql.split("--> statement-breakpoint");
     for (const stmt of stmts) {
       if (stmt.trim()) {
@@ -114,41 +117,54 @@ async function runExistingDbAdoptionTest() {
     }
 
     // 3. Adopt existing database
-    process.env.DATABASE_URL = dbUrl;
-    await adoptExistingDatabase();
+    await adoptExistingDatabase(dbUrl);
 
     // 4. Verify post-migration state and semantic backfill
     const rows = await pool.query<{
       component: string;
       distribution_authorization_status: string;
       legal_review_required: boolean;
-    }>(`SELECT component, distribution_authorization_status, legal_review_required FROM "research_license_entries" ORDER BY sort_order`);
+    }>(
+      `SELECT component, distribution_authorization_status, legal_review_required FROM "research_license_entries" ORDER BY sort_order`,
+    );
 
     if (rows.rows.length !== 6) {
       throw new Error(`Expected 6 preserved rows, got ${rows.rows.length}`);
     }
 
-    const rowMap = new Map(rows.rows.map((r) => [r.component, r.distribution_authorization_status]));
+    const rowMap = new Map(
+      rows.rows.map((r) => [r.component, r.distribution_authorization_status]),
+    );
 
     // Assert semantic backfill
     if (rowMap.get("Mutagen / Synthesis / Spriggit") !== "LEGAL_REVIEW_REQUIRED") {
-      throw new Error(`Expected Mutagen to be LEGAL_REVIEW_REQUIRED, got ${rowMap.get("Mutagen / Synthesis / Spriggit")}`);
+      throw new Error(
+        `Expected Mutagen to be LEGAL_REVIEW_REQUIRED, got ${rowMap.get("Mutagen / Synthesis / Spriggit")}`,
+      );
     }
     if (rowMap.get("Creation Kit Platform Extended") !== "LEGAL_REVIEW_REQUIRED") {
-      throw new Error(`Expected CKPE to be LEGAL_REVIEW_REQUIRED, got ${rowMap.get("Creation Kit Platform Extended")}`);
+      throw new Error(
+        `Expected CKPE to be LEGAL_REVIEW_REQUIRED, got ${rowMap.get("Creation Kit Platform Extended")}`,
+      );
     }
     if (rowMap.get("esper / esper-js / esper-cpp / balsa") !== "LEGAL_REVIEW_REQUIRED") {
-      throw new Error(`Expected esper to be LEGAL_REVIEW_REQUIRED, got ${rowMap.get("esper / esper-js / esper-cpp / balsa")}`);
+      throw new Error(
+        `Expected esper to be LEGAL_REVIEW_REQUIRED, got ${rowMap.get("esper / esper-js / esper-cpp / balsa")}`,
+      );
     }
     if (rowMap.get("Skyrim Special Edition / Anniversary Edition") !== "DESCARTADO") {
-      throw new Error(`Expected Skyrim to be DESCARTADO, got ${rowMap.get("Skyrim Special Edition / Anniversary Edition")}`);
+      throw new Error(
+        `Expected Skyrim to be DESCARTADO, got ${rowMap.get("Skyrim Special Edition / Anniversary Edition")}`,
+      );
     }
     if (rowMap.get("LOOT / libloot") !== "NOT_APPLICABLE") {
       throw new Error(`Expected LOOT to be NOT_APPLICABLE, got ${rowMap.get("LOOT / libloot")}`);
     }
     // Fail-closed check for unknown row
     if (rowMap.get("Custom Operator Tool (Unknown)") !== "LEGAL_REVIEW_REQUIRED") {
-      throw new Error(`Expected unknown row to fail-closed to LEGAL_REVIEW_REQUIRED, got ${rowMap.get("Custom Operator Tool (Unknown)")}`);
+      throw new Error(
+        `Expected unknown row to fail-closed to LEGAL_REVIEW_REQUIRED, got ${rowMap.get("Custom Operator Tool (Unknown)")}`,
+      );
     }
 
     console.log("SEMANTIC BACKFILL: All rows verified with exact expected legal statuses.");
@@ -163,7 +179,7 @@ async function runExistingDbAdoptionTest() {
         ('Bad Row', 'MIT', 'Intended', 'Allowed', 'Allowed', 'Low', false, 'INVALID_ENUM_VALUE', 'Notes', 99)
       `);
     } catch (err: any) {
-      if (err.message.includes('invalid input value for enum distribution_authorization_status')) {
+      if (err.message.includes("invalid input value for enum distribution_authorization_status")) {
         invalidRejected = true;
       } else {
         throw err;
@@ -176,7 +192,7 @@ async function runExistingDbAdoptionTest() {
     console.log("DATABASE CONSTRAINT: Invalid enum value successfully rejected.");
 
     // 6. Verify second migration is clean no-op
-    await runMigrations();
+    await runMigrations(dbUrl);
     console.log("EXISTING DB ADOPTION: All checks passed.");
   } finally {
     await pool.end();

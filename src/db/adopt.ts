@@ -8,13 +8,6 @@ import { Pool } from "pg";
 
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  console.error("ERROR: DATABASE_URL environment variable is required for baseline adoption.");
-  process.exit(1);
-}
-
 export const EXPECTED_BASELINE_TABLES = [
   "research_architecture_options",
   "research_capabilities",
@@ -46,7 +39,13 @@ export async function verifyBaselineFingerprint(
   };
 }
 
-export async function adoptExistingDatabase() {
+export async function adoptExistingDatabase(customDatabaseUrl?: string) {
+  const databaseUrl = customDatabaseUrl || process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    console.error("ERROR: DATABASE_URL environment variable is required for baseline adoption.");
+    throw new Error("DATABASE_URL environment variable is required for baseline adoption.");
+  }
+
   console.log("Verifying existing database for baseline adoption...");
   const pool = new Pool({ connectionString: databaseUrl });
   const db = drizzle(pool);
