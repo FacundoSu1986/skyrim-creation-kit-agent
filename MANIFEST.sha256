@@ -2,7 +2,7 @@ e028774f299851e52f11b2c33e8e5130989ddfaff9e9bd593c3e41b2111d1eff  ./.github/CODE
 89c95097d181d96668223e4cfc8ea666ad1130276d9dbc57ef63fc7663902217  ./.github/ISSUE_TEMPLATE/research.yml
 f6a01dcffd70c09dca98bed81d1163e8900045925db1dae6845432bad949e3d3  ./.github/dependabot.yml
 12da2d1b18521db24e8c82bdd72f2c305dec11a78942a0eec5b5aae0d3db0484  ./.github/pull_request_template.md
-5c21b55883781fa421a9e75a83a7990ca8304322dd0cf381729c7eabb25c5cb0  ./.github/workflows/discovery-desk.yml
+004309d64c4618cf9634b744cc428f300133187535552420066c3ad9663ab620  ./.github/workflows/discovery-desk.yml
 f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/workflows/poc002.yml
 5d6536ca5510ea645218519382498b9985bc98058de88c75ef8876e47d9b30d1  ./.github/workflows/poc-ipc.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
