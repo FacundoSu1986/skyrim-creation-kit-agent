@@ -16,22 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         node-version: ["22"]
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
-      # Build fixture / test database URL
       DATABASE_URL: postgresql://postgres:password@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,7 +34,14 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: Start PostgreSQL container
+        run: |
+          docker run -d --name test-postgres -p 5432:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=postgres postgres:16-alpine
+          until docker exec test-postgres pg_isready -U postgres; do sleep 1; done
       - name: Migration Lifecycle Tests (Fresh DB & Existing Pre-PR Adoption)
         run: npx tsx tests/migration-lifecycle.test.ts
       - name: Build
         run: npm run build
+      - name: Stop PostgreSQL container
+        if: always()
+        run: docker rm -f test-postgres || true
