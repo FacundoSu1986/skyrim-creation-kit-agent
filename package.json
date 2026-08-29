@@ -30,6 +30,7 @@
     "eslint-config-next": "16.3.2",
     "postcss": "8.5.26",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.12",
     "typescript": "5.9.3"
   }
 }

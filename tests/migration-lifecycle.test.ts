@@ -2,9 +2,12 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import { adoptExistingDatabase, verifyBaselineFingerprint } from "../src/db/adopt";
+import {
+  EXPECTED_BASELINE_SCHEMA,
+  adoptExistingDatabase,
+  verifyBaselineFingerprint,
+} from "../src/db/adopt";
 import { runMigrations } from "../src/db/migrate";
 
 const baseDatabaseUrl =
@@ -43,9 +46,14 @@ async function runFreshDbTest() {
   // 2. Verify tables and enum exist
   const pool = new Pool({ connectionString: dbUrl });
   try {
-    const fingerprint = await verifyBaselineFingerprint(pool);
-    if (!fingerprint.valid) {
-      throw new Error(`Fresh DB missing expected tables: ${fingerprint.missingTables.join(", ")}`);
+    const tableRes = await pool.query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+    );
+    const tableNames = new Set(tableRes.rows.map((r) => r.table_name));
+    for (const expectedTable of Object.keys(EXPECTED_BASELINE_SCHEMA)) {
+      if (!tableNames.has(expectedTable)) {
+        throw new Error(`Fresh DB missing table: ${expectedTable}`);
+      }
     }
 
     const colRes = await pool.query(
@@ -108,33 +116,57 @@ async function runExistingDbAdoptionTest() {
       ('Custom Operator Tool (Unknown)', 'Custom', 'Intended', 'None', 'None', 'Unknown', false, 'Unknown row', 6)
     `);
 
-    console.log("Inserted 6 sample rows into pre-PR database without migration history.");
+    // Capture pre-migration primary keys
+    const preRows = await pool.query<{ id: number; component: string }>(
+      `SELECT id, component FROM "research_license_entries" ORDER BY sort_order`,
+    );
+    const preIdMap = new Map<string, number>();
+    for (const row of preRows.rows) {
+      preIdMap.set(row.component, row.id);
+    }
+    console.log("Pre-migration rows inserted. IDs recorded:", Array.from(preIdMap.entries()));
 
-    // Verify baseline fingerprint before adoption
+    // Verify deep schema fingerprint before adoption
     const preFingerprint = await verifyBaselineFingerprint(pool);
     if (!preFingerprint.valid) {
-      throw new Error("Pre-PR schema instantiation failed fingerprint verification");
+      throw new Error(`Pre-PR schema fingerprint mismatch: ${preFingerprint.errors.join("; ")}`);
     }
+    console.log("Pre-PR deep schema fingerprint validated (13 tables, all columns & types match).");
 
     // 3. Adopt existing database
     await adoptExistingDatabase(dbUrl);
 
-    // 4. Verify post-migration state and semantic backfill
-    const rows = await pool.query<{
+    // 4. Verify post-migration state, semantic backfill, and strict PK preservation
+    const postRows = await pool.query<{
+      id: number;
       component: string;
       distribution_authorization_status: string;
       legal_review_required: boolean;
     }>(
-      `SELECT component, distribution_authorization_status, legal_review_required FROM "research_license_entries" ORDER BY sort_order`,
+      `SELECT id, component, distribution_authorization_status, legal_review_required FROM "research_license_entries" ORDER BY sort_order`,
     );
 
-    if (rows.rows.length !== 6) {
-      throw new Error(`Expected 6 preserved rows, got ${rows.rows.length}`);
+    if (postRows.rows.length !== 6) {
+      throw new Error(`Expected 6 preserved rows, got ${postRows.rows.length}`);
     }
 
     const rowMap = new Map(
-      rows.rows.map((r) => [r.component, r.distribution_authorization_status]),
+      postRows.rows.map((r) => [r.component, r.distribution_authorization_status]),
     );
+
+    // Explicit Primary Key Preservation assertion
+    for (const postRow of postRows.rows) {
+      const expectedId = preIdMap.get(postRow.component);
+      if (expectedId === undefined) {
+        throw new Error(`Unexpected post-migration component: ${postRow.component}`);
+      }
+      if (postRow.id !== expectedId) {
+        throw new Error(
+          `Primary key changed for ${postRow.component}: pre-id=${expectedId}, post-id=${postRow.id}`,
+        );
+      }
+    }
+    console.log("PRIMARY KEY PRESERVATION: Verified 100% (same component -> same id pre/post).");
 
     // Assert semantic backfill
     if (rowMap.get("Mutagen / Synthesis / Spriggit") !== "LEGAL_REVIEW_REQUIRED") {
@@ -199,10 +231,104 @@ async function runExistingDbAdoptionTest() {
   }
 }
 
+async function runFingerprintMismatchNegativeTest() {
+  console.log("\n========================================================");
+  console.log("RUNNING TEST: Fingerprint Mismatch Fail-Closed Test");
+  console.log("========================================================");
+
+  const dbName = "test_mismatch_db";
+  await createEmptyDatabase(dbName);
+  const dbUrl = getDbUrl(dbName);
+
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    // Create incomplete database with 1 missing table
+    await pool.query(`CREATE TABLE "research_documents" (id serial PRIMARY KEY, slug text NOT NULL)`);
+
+    let adoptionFailed = false;
+    try {
+      await adoptExistingDatabase(dbUrl);
+    } catch (err: any) {
+      if (err.message.includes("Database baseline mismatch")) {
+        adoptionFailed = true;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!adoptionFailed) {
+      throw new Error("Database adoption succeeded on mismatched schema");
+    }
+    console.log("FINGERPRINT MISMATCH: Successfully blocked adoption on incomplete schema.");
+  } finally {
+    await pool.end();
+  }
+}
+
+async function runHashMismatchNegativeTest() {
+  console.log("\n========================================================");
+  console.log("RUNNING TEST: Baseline Hash Mismatch Fail-Closed Test");
+  console.log("========================================================");
+
+  const dbName = "test_hash_mismatch_db";
+  await createEmptyDatabase(dbName);
+  const dbUrl = getDbUrl(dbName);
+
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    // 1. Instantiate baseline schema
+    const baselineSql = fs.readFileSync(
+      path.resolve(process.cwd(), "drizzle/0000_baseline.sql"),
+      "utf8",
+    );
+    for (const stmt of baselineSql.split("--> statement-breakpoint")) {
+      if (stmt.trim()) await pool.query(stmt);
+    }
+
+    // 2. Insert corrupted migration hash in drizzle.__drizzle_migrations
+    const journal = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), "drizzle/meta/_journal.json"), "utf8"),
+    );
+    const baselineEntry = journal.entries.find((e: { tag: string }) => e.tag === "0000_baseline");
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+    await pool.query(`
+      CREATE TABLE "drizzle"."__drizzle_migrations" (
+        id SERIAL PRIMARY KEY,
+        hash text NOT NULL,
+        created_at bigint
+      )
+    `);
+    await pool.query(
+      `INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES ($1, $2)`,
+      ["corrupted_fake_hash_12345", baselineEntry.when],
+    );
+
+    let hashMismatchBlocked = false;
+    try {
+      await adoptExistingDatabase(dbUrl);
+    } catch (err: any) {
+      if (err.message.includes("DATABASE_BASELINE_MISMATCH: Recorded 0000_baseline hash")) {
+        hashMismatchBlocked = true;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!hashMismatchBlocked) {
+      throw new Error("Database adoption succeeded despite corrupted baseline hash");
+    }
+    console.log("HASH MISMATCH: Successfully blocked adoption on corrupted baseline hash.");
+  } finally {
+    await pool.end();
+  }
+}
+
 async function main() {
   try {
     await runFreshDbTest();
     await runExistingDbAdoptionTest();
+    await runFingerprintMismatchNegativeTest();
+    await runHashMismatchNegativeTest();
     console.log("\n==========================================");
     console.log("ALL MIGRATION LIFECYCLE TESTS PASSED (100%)");
     console.log("==========================================\n");
