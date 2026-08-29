@@ -14,6 +14,18 @@ export interface ColumnSpec {
   isNullable: "YES" | "NO";
 }
 
+export interface BaselineFingerprintResult {
+  valid: boolean;
+  missingTables: string[];
+  missingColumns: string[];
+  unexpectedCriticalColumns: string[];
+  typeMismatches: string[];
+  nullabilityMismatches: string[];
+  primaryKeyMismatches: string[];
+  constraintMismatches: string[];
+  errors: string[];
+}
+
 export const EXPECTED_BASELINE_SCHEMA: Record<string, ColumnSpec[]> = {
   research_architecture_options: [
     { name: "id", dataType: "integer", isNullable: "NO" },
@@ -168,7 +180,14 @@ export const EXPECTED_BASELINE_SCHEMA: Record<string, ColumnSpec[]> = {
 
 export async function verifyBaselineFingerprint(
   pool: Pool,
-): Promise<{ valid: boolean; errors: string[] }> {
+): Promise<BaselineFingerprintResult> {
+  const missingTables: string[] = [];
+  const missingColumns: string[] = [];
+  const unexpectedCriticalColumns: string[] = [];
+  const typeMismatches: string[] = [];
+  const nullabilityMismatches: string[] = [];
+  const primaryKeyMismatches: string[] = [];
+  const constraintMismatches: string[] = [];
   const errors: string[] = [];
 
   // 1. Check table existence
@@ -180,12 +199,9 @@ export async function verifyBaselineFingerprint(
   const expectedTableNames = Object.keys(EXPECTED_BASELINE_SCHEMA);
   for (const tableName of expectedTableNames) {
     if (!existingTables.has(tableName)) {
+      missingTables.push(tableName);
       errors.push(`Missing table: ${tableName}`);
     }
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, errors };
   }
 
   // 2. Fetch all column definitions across public schema
@@ -216,22 +232,29 @@ export async function verifyBaselineFingerprint(
   for (const [tableName, expectedCols] of Object.entries(EXPECTED_BASELINE_SCHEMA)) {
     const actualCols = columnsByTable.get(tableName);
     if (!actualCols) {
-      errors.push(`Table ${tableName} not found in columns metadata`);
+      // Missing table already recorded in step 1
       continue;
     }
 
     for (const expectedCol of expectedCols) {
       const actual = actualCols.get(expectedCol.name);
       if (!actual) {
+        missingColumns.push(`${tableName}.${expectedCol.name}`);
         errors.push(`Table ${tableName} missing expected column: ${expectedCol.name}`);
         continue;
       }
       if (actual.dataType !== expectedCol.dataType) {
+        typeMismatches.push(
+          `${tableName}.${expectedCol.name}: expected ${expectedCol.dataType}, got ${actual.dataType}`,
+        );
         errors.push(
           `Table ${tableName}.${expectedCol.name} data_type mismatch: expected ${expectedCol.dataType}, got ${actual.dataType}`,
         );
       }
       if (actual.isNullable !== expectedCol.isNullable) {
+        nullabilityMismatches.push(
+          `${tableName}.${expectedCol.name}: expected ${expectedCol.isNullable}, got ${actual.isNullable}`,
+        );
         errors.push(
           `Table ${tableName}.${expectedCol.name} nullability mismatch: expected ${expectedCol.isNullable}, got ${actual.isNullable}`,
         );
@@ -240,14 +263,82 @@ export async function verifyBaselineFingerprint(
 
     // Explicit constraint: distribution_authorization_status MUST NOT exist on pre-PR database
     if (tableName === "research_license_entries" && actualCols.has("distribution_authorization_status")) {
+      unexpectedCriticalColumns.push("research_license_entries.distribution_authorization_status");
       errors.push(
         `Table research_license_entries already has distribution_authorization_status column. Pre-PR baseline adoption invalid.`,
       );
     }
   }
 
+  // 4. Verify primary key constraints across all baseline tables
+  const pkResult = await pool.query<{
+    table_name: string;
+    column_name: string;
+  }>(
+    `SELECT tc.table_name, kcu.column_name
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.key_column_usage kcu
+       ON tc.constraint_name = kcu.constraint_name
+       AND tc.table_schema = kcu.table_schema
+     WHERE tc.table_schema = 'public'
+       AND tc.constraint_type = 'PRIMARY KEY'`,
+  );
+  const pksByTable = new Map<string, Set<string>>();
+  for (const row of pkResult.rows) {
+    if (!pksByTable.has(row.table_name)) {
+      pksByTable.set(row.table_name, new Set());
+    }
+    pksByTable.get(row.table_name)!.add(row.column_name);
+  }
+
+  for (const tableName of expectedTableNames) {
+    if (existingTables.has(tableName)) {
+      const tablePks = pksByTable.get(tableName);
+      if (!tablePks || !tablePks.has("id")) {
+        primaryKeyMismatches.push(`${tableName}.id is not PRIMARY KEY`);
+        errors.push(`Table ${tableName} missing PRIMARY KEY constraint on 'id'`);
+      }
+    }
+  }
+
+  // 5. Verify critical unique constraints (research_documents.slug UNIQUE)
+  const uniqueResult = await pool.query<{
+    table_name: string;
+    column_name: string;
+  }>(
+    `SELECT tc.table_name, kcu.column_name
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.key_column_usage kcu
+       ON tc.constraint_name = kcu.constraint_name
+       AND tc.table_schema = kcu.table_schema
+     WHERE tc.table_schema = 'public'
+       AND tc.constraint_type = 'UNIQUE'`,
+  );
+  const uniquesByTable = new Map<string, Set<string>>();
+  for (const row of uniqueResult.rows) {
+    if (!uniquesByTable.has(row.table_name)) {
+      uniquesByTable.set(row.table_name, new Set());
+    }
+    uniquesByTable.get(row.table_name)!.add(row.column_name);
+  }
+
+  if (existingTables.has("research_documents")) {
+    const docUniques = uniquesByTable.get("research_documents");
+    if (!docUniques || !docUniques.has("slug")) {
+      constraintMismatches.push("research_documents.slug missing UNIQUE constraint");
+      errors.push("Table research_documents missing UNIQUE constraint on 'slug'");
+    }
+  }
+
   return {
     valid: errors.length === 0,
+    missingTables,
+    missingColumns,
+    unexpectedCriticalColumns,
+    typeMismatches,
+    nullabilityMismatches,
+    primaryKeyMismatches,
+    constraintMismatches,
     errors,
   };
 }
@@ -264,7 +355,7 @@ export async function adoptExistingDatabase(customDatabaseUrl?: string) {
   const db = drizzle(pool);
 
   try {
-    // 1. Verify schema fingerprint across all 13 baseline tables & columns
+    // 1. Verify schema fingerprint across all 13 baseline tables, columns, types, PKs, and constraints
     const fingerprint = await verifyBaselineFingerprint(pool);
     if (!fingerprint.valid) {
       console.error("STATUS: DATABASE_BASELINE_MISMATCH");
@@ -274,7 +365,7 @@ export async function adoptExistingDatabase(customDatabaseUrl?: string) {
       );
     }
 
-    console.log("Schema fingerprint verified. All 13 expected baseline tables and columns strictly match.");
+    console.log("Schema fingerprint verified. All 13 expected baseline tables, columns, types, PKs, and unique constraints match.");
 
     // 2. Read baseline migration metadata
     const drizzleDir = path.resolve(process.cwd(), "drizzle");
@@ -318,7 +409,7 @@ export async function adoptExistingDatabase(customDatabaseUrl?: string) {
         [baselineHash, baselineEntry.when],
       );
       console.log("Baseline marked successfully.");
-    } else {
+    } else if (existingMigrations.rows.length === 1) {
       // Validate recorded hash against canonical baseline hash
       const recordedHash = existingMigrations.rows[0].hash;
       if (recordedHash !== baselineHash) {
@@ -329,6 +420,13 @@ export async function adoptExistingDatabase(customDatabaseUrl?: string) {
         );
       }
       console.log("Baseline migration 0000_baseline was already recorded with matching hash.");
+    } else {
+      // Multiple records with same baseline created_at -> fail closed
+      console.error("STATUS: DATABASE_BASELINE_MISMATCH");
+      console.error(`Multiple migration records (${existingMigrations.rows.length}) found for baseline timestamp ${baselineEntry.when}`);
+      throw new Error(
+        `DATABASE_BASELINE_MISMATCH: Multiple migration records (${existingMigrations.rows.length}) found for baseline timestamp ${baselineEntry.when}`,
+      );
     }
 
     // 4. Run pending migrations (0001_add_distribution_authorization_status)

@@ -168,6 +168,20 @@ async function runExistingDbAdoptionTest() {
     }
     console.log("PRIMARY KEY PRESERVATION: Verified 100% (same component -> same id pre/post).");
 
+    // 5. Verify serial sequence remains usable without collision
+    const seqInsertRes = await pool.query<{ id: number }>(`
+      INSERT INTO "research_license_entries"
+      ("component", "license", "intended_use", "modification", "distribution", "risk", "legal_review_required", "distribution_authorization_status", "notes", "sort_order")
+      VALUES
+      ('Post-Migration Sequenced Component', 'MIT', 'Intended', 'Allowed', 'Allowed', 'Low', false, 'NOT_APPLICABLE', 'Sequence test', 7)
+      RETURNING id
+    `);
+    const newId = seqInsertRes.rows[0].id;
+    if (newId !== 7) {
+      throw new Error(`Expected new auto-generated id to be 7, got ${newId}`);
+    }
+    console.log(`SERIAL SEQUENCE: Verified post-migration insert generated non-colliding ID ${newId}.`);
+
     // Assert semantic backfill
     if (rowMap.get("Mutagen / Synthesis / Spriggit") !== "LEGAL_REVIEW_REQUIRED") {
       throw new Error(
@@ -201,7 +215,7 @@ async function runExistingDbAdoptionTest() {
 
     console.log("SEMANTIC BACKFILL: All rows verified with exact expected legal statuses.");
 
-    // 5. Test rejection of invalid enum values
+    // 6. Test rejection of invalid enum values
     let invalidRejected = false;
     try {
       await pool.query(`
@@ -223,7 +237,7 @@ async function runExistingDbAdoptionTest() {
     }
     console.log("DATABASE CONSTRAINT: Invalid enum value successfully rejected.");
 
-    // 6. Verify second migration is clean no-op
+    // 7. Verify second migration is clean no-op
     await runMigrations(dbUrl);
     console.log("EXISTING DB ADOPTION: All checks passed.");
   } finally {
@@ -231,37 +245,232 @@ async function runExistingDbAdoptionTest() {
   }
 }
 
-async function runFingerprintMismatchNegativeTest() {
+async function instantiateBaselineSql(pool: Pool) {
+  const baselineSql = fs.readFileSync(
+    path.resolve(process.cwd(), "drizzle/0000_baseline.sql"),
+    "utf8",
+  );
+  const stmts = baselineSql.split("--> statement-breakpoint");
+  for (const stmt of stmts) {
+    if (stmt.trim()) {
+      await pool.query(stmt);
+    }
+  }
+}
+
+async function assertNoBaselineRecorded(pool: Pool) {
+  const migTableRes = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT FROM information_schema.tables
+       WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'
+     ) as exists`,
+  );
+  if (migTableRes.rows[0]?.exists) {
+    const journal = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), "drizzle/meta/_journal.json"), "utf8"),
+    );
+    const baselineEntry = journal.entries.find((e: { tag: string }) => e.tag === "0000_baseline");
+    const migRows = await pool.query(
+      `SELECT * FROM "drizzle"."__drizzle_migrations" WHERE created_at = $1`,
+      [baselineEntry.when],
+    );
+    if (migRows.rows.length > 0) {
+      throw new Error("False 0000_baseline record was created in drizzle.__drizzle_migrations on drifted DB");
+    }
+  }
+}
+
+async function runFingerprintDriftTests() {
   console.log("\n========================================================");
-  console.log("RUNNING TEST: Fingerprint Mismatch Fail-Closed Test");
+  console.log("RUNNING TESTS: Fingerprint Drift & Fail-Closed Scenarios");
   console.log("========================================================");
 
-  const dbName = "test_mismatch_db";
-  await createEmptyDatabase(dbName);
-  const dbUrl = getDbUrl(dbName);
-
-  const pool = new Pool({ connectionString: dbUrl });
-  try {
-    // Create incomplete database with 1 missing table
-    await pool.query(`CREATE TABLE "research_documents" (id serial PRIMARY KEY, slug text NOT NULL)`);
-
-    let adoptionFailed = false;
+  // 1. Missing table
+  {
+    const dbName = "test_drift_missing_table";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
     try {
-      await adoptExistingDatabase(dbUrl);
-    } catch (err: any) {
-      if (err.message.includes("Database baseline mismatch")) {
-        adoptionFailed = true;
-      } else {
-        throw err;
+      await pool.query(`CREATE TABLE "research_documents" (id serial PRIMARY KEY, slug text NOT NULL)`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("Missing table")) {
+          failed = true;
+        } else {
+          throw err;
+        }
       }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with missing tables");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Missing Table): Blocked fail-closed; no false baseline record created.");
+    } finally {
+      await pool.end();
     }
+  }
 
-    if (!adoptionFailed) {
-      throw new Error("Database adoption succeeded on mismatched schema");
+  // 2. Missing required column
+  {
+    const dbName = "test_drift_missing_column";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await instantiateBaselineSql(pool);
+      await pool.query(`ALTER TABLE "research_license_entries" DROP COLUMN "modification"`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("missing expected column: modification")) {
+          failed = true;
+        } else {
+          throw err;
+        }
+      }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with missing column");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Missing Column): Blocked fail-closed; no false baseline record created.");
+    } finally {
+      await pool.end();
     }
-    console.log("FINGERPRINT MISMATCH: Successfully blocked adoption on incomplete schema.");
-  } finally {
-    await pool.end();
+  }
+
+  // 3. Column type mismatch
+  {
+    const dbName = "test_drift_type_mismatch";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await instantiateBaselineSql(pool);
+      await pool.query(`ALTER TABLE "research_license_entries" ALTER COLUMN "sort_order" TYPE text USING sort_order::text`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("data_type mismatch")) {
+          failed = true;
+        } else {
+          throw err;
+        }
+      }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with column type mismatch");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Type Mismatch): Blocked fail-closed; no false baseline record created.");
+    } finally {
+      await pool.end();
+    }
+  }
+
+  // 4. Column nullability mismatch
+  {
+    const dbName = "test_drift_nullability_mismatch";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await instantiateBaselineSql(pool);
+      await pool.query(`ALTER TABLE "research_license_entries" ALTER COLUMN "notes" DROP NOT NULL`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("nullability mismatch")) {
+          failed = true;
+        } else {
+          throw err;
+        }
+      }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with nullability mismatch");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Nullability Mismatch): Blocked fail-closed; no false baseline record created.");
+    } finally {
+      await pool.end();
+    }
+  }
+
+  // 5. Missing Primary Key on research_license_entries
+  {
+    const dbName = "test_drift_missing_pk";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await instantiateBaselineSql(pool);
+      await pool.query(`ALTER TABLE "research_license_entries" DROP CONSTRAINT "research_license_entries_pkey"`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("missing PRIMARY KEY constraint")) {
+          failed = true;
+        } else {
+          throw err;
+        }
+      }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with missing PRIMARY KEY");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Missing Primary Key): Blocked fail-closed; no false baseline record created.");
+    } finally {
+      await pool.end();
+    }
+  }
+
+  // 6. Pre-existing distribution_authorization_status column (Critical Negative Invariant)
+  {
+    const dbName = "test_drift_pre_existing_status";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await instantiateBaselineSql(pool);
+      await pool.query(`ALTER TABLE "research_license_entries" ADD COLUMN "distribution_authorization_status" text`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("already has distribution_authorization_status column")) {
+          failed = true;
+        } else {
+          throw err;
+        }
+      }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with pre-existing distribution_authorization_status");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Pre-existing Status Column): Blocked fail-closed; negative invariant enforced.");
+    } finally {
+      await pool.end();
+    }
+  }
+
+  // 7. Missing Unique Constraint on research_documents.slug
+  {
+    const dbName = "test_drift_missing_unique";
+    await createEmptyDatabase(dbName);
+    const dbUrl = getDbUrl(dbName);
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await instantiateBaselineSql(pool);
+      await pool.query(`ALTER TABLE "research_documents" DROP CONSTRAINT "research_documents_slug_unique"`);
+      let failed = false;
+      try {
+        await adoptExistingDatabase(dbUrl);
+      } catch (err: any) {
+        if (err.message.includes("Database baseline mismatch") && err.message.includes("missing UNIQUE constraint")) {
+          failed = true;
+        } else {
+          throw err;
+        }
+      }
+      if (!failed) throw new Error("Adoption unexpectedly succeeded with missing UNIQUE constraint");
+      await assertNoBaselineRecorded(pool);
+      console.log("DRIFT (Missing Unique Constraint): Blocked fail-closed; slug unique enforced.");
+    } finally {
+      await pool.end();
+    }
   }
 }
 
@@ -277,13 +486,7 @@ async function runHashMismatchNegativeTest() {
   const pool = new Pool({ connectionString: dbUrl });
   try {
     // 1. Instantiate baseline schema
-    const baselineSql = fs.readFileSync(
-      path.resolve(process.cwd(), "drizzle/0000_baseline.sql"),
-      "utf8",
-    );
-    for (const stmt of baselineSql.split("--> statement-breakpoint")) {
-      if (stmt.trim()) await pool.query(stmt);
-    }
+    await instantiateBaselineSql(pool);
 
     // 2. Insert corrupted migration hash in drizzle.__drizzle_migrations
     const journal = JSON.parse(
@@ -317,7 +520,87 @@ async function runHashMismatchNegativeTest() {
     if (!hashMismatchBlocked) {
       throw new Error("Database adoption succeeded despite corrupted baseline hash");
     }
+
+    // Ensure 0001 was not applied
+    const colRes = await pool.query(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'research_license_entries'
+         AND column_name = 'distribution_authorization_status'`,
+    );
+    if (colRes.rows.length > 0) {
+      throw new Error("Migration 0001 was applied despite hash mismatch");
+    }
+
     console.log("HASH MISMATCH: Successfully blocked adoption on corrupted baseline hash.");
+  } finally {
+    await pool.end();
+  }
+}
+
+async function runDuplicateHistoryNegativeTest() {
+  console.log("\n========================================================");
+  console.log("RUNNING TEST: Duplicate Baseline History Fail-Closed Test");
+  console.log("========================================================");
+
+  const dbName = "test_duplicate_history_db";
+  await createEmptyDatabase(dbName);
+  const dbUrl = getDbUrl(dbName);
+
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    // 1. Instantiate baseline schema
+    await instantiateBaselineSql(pool);
+
+    // 2. Insert duplicate migration records in drizzle.__drizzle_migrations
+    const journal = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), "drizzle/meta/_journal.json"), "utf8"),
+    );
+    const baselineEntry = journal.entries.find((e: { tag: string }) => e.tag === "0000_baseline");
+    const baselineSql = fs.readFileSync(
+      path.resolve(process.cwd(), "drizzle/0000_baseline.sql"),
+      "utf8",
+    );
+    const canonicalHash = crypto.createHash("sha256").update(baselineSql).digest("hex");
+
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+    await pool.query(`
+      CREATE TABLE "drizzle"."__drizzle_migrations" (
+        id SERIAL PRIMARY KEY,
+        hash text NOT NULL,
+        created_at bigint
+      )
+    `);
+    await pool.query(
+      `INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES ($1, $2), ($3, $4)`,
+      [canonicalHash, baselineEntry.when, canonicalHash, baselineEntry.when],
+    );
+
+    let duplicateBlocked = false;
+    try {
+      await adoptExistingDatabase(dbUrl);
+    } catch (err: any) {
+      if (err.message.includes("DATABASE_BASELINE_MISMATCH: Multiple migration records")) {
+        duplicateBlocked = true;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!duplicateBlocked) {
+      throw new Error("Database adoption succeeded despite duplicate baseline records");
+    }
+
+    // Ensure 0001 was not applied
+    const colRes = await pool.query(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'research_license_entries'
+         AND column_name = 'distribution_authorization_status'`,
+    );
+    if (colRes.rows.length > 0) {
+      throw new Error("Migration 0001 was applied despite duplicate baseline records");
+    }
+
+    console.log("DUPLICATE HISTORY: Successfully blocked adoption on duplicate migration records.");
   } finally {
     await pool.end();
   }
@@ -327,8 +610,9 @@ async function main() {
   try {
     await runFreshDbTest();
     await runExistingDbAdoptionTest();
-    await runFingerprintMismatchNegativeTest();
+    await runFingerprintDriftTests();
     await runHashMismatchNegativeTest();
+    await runDuplicateHistoryNegativeTest();
     console.log("\n==========================================");
     console.log("ALL MIGRATION LIFECYCLE TESTS PASSED (100%)");
     console.log("==========================================\n");
