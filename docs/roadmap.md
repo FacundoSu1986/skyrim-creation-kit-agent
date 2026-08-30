@@ -38,9 +38,13 @@ Verify deterministic external compiler invocation, timeout behavior, stdout/stde
 
 Verify a pinned allowlisted script with `-script -autoexit`, explicit completion evidence, timeout, and no generated Pascal.
 
-### POC-IPC-001 — isolated worker protocol (next)
+### POC-IPC-001 — isolated worker protocol
 
-Implement the minimal proof defined by [ADR-002](ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) (accepted 2026-08-25). This is the next work item. Previously reviewed versions remain `CHANGES_REQUIRED`; do not import them as passing code.
+**Status:** **PASS**. The minimal proof defined by [ADR-002](adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) (accepted 2026-08-25) was implemented and validated by POC-IPC-001 (`OS_SANDBOX` remains `NO VERIFICADO`).
+
+### POC-MUTAGEN-001 — Mutagen read-only inspector
+
+**Status:** **BLOQUEADO** por [ADR-003](adr/ADR-003-mutagen-runtime-and-license-boundary.md) / license-runtime decision. Inspect a Skyrim plugin file header under an isolated .NET worker runtime.
 
 ## Later product milestones
 

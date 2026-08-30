@@ -2,7 +2,7 @@ e028774f299851e52f11b2c33e8e5130989ddfaff9e9bd593c3e41b2111d1eff  ./.github/CODE
 89c95097d181d96668223e4cfc8ea666ad1130276d9dbc57ef63fc7663902217  ./.github/ISSUE_TEMPLATE/research.yml
 f6a01dcffd70c09dca98bed81d1163e8900045925db1dae6845432bad949e3d3  ./.github/dependabot.yml
 12da2d1b18521db24e8c82bdd72f2c305dec11a78942a0eec5b5aae0d3db0484  ./.github/pull_request_template.md
-f4925659763bb59a95687d1900645c00f04d0c6c97f3a693b9c8d2251fc62925  ./.github/workflows/discovery-desk.yml
+1a4ebc07f89292cab38bebde1aeb4ab004ecea78a5f3662e65345c9f9488324a  ./.github/workflows/discovery-desk.yml
 f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/workflows/poc002.yml
 5d6536ca5510ea645218519382498b9985bc98058de88c75ef8876e47d9b30d1  ./.github/workflows/poc-ipc.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
@@ -12,6 +12,7 @@ cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
+f48078955f04218998526abda758078d4ad2d380f2294105ca30792f45335ab6  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md
 ec381d6e48340621ddcc581357ba19eacef8e1d69173d07d73240ff29c75eff9  ./docs/research/capability-matrix.md
@@ -24,8 +25,8 @@ c206dd7d4b2083a125c870a5604564428cf38abc59d9472d77e9c381d2dfaad4  ./docs/researc
 ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/research/problem-definition.md
 13aa51e639c698feff0773a95b76c300b3887910aa13a802176c6027c39cb64d  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
-ac54d9904c2829b3709e53fa1586b727cb43121ecfbf0e1c80e55750d6d1f372  ./docs/roadmap.md
-4e15b0b75a1fa3c27dd4428e4a85fb333b7a177f434f86dac801bf7134adb43b  ./docs/status.md
+3030ea62e748012091b4ac86eaf5594c9c14aeb329665721ccf396a793e17d82  ./docs/roadmap.md
+be0c535370a5aa61ee773be47491707a3dcb436b4d90f8cacc77708e6b66677c  ./docs/status.md
 839b3769c6266e0963bbdd502bb09cab631851638569cadba4460c4d5aef2533  ./pyproject.toml
 886dbf87e0b5e30c772211f90598e7ac8211bcbdafe9bcf20f7914f9305c0fa1  ./research/poc_002/README.md
 be7dc8935aff5f2aff30d7737dd78900c53bd4d258f7da44531d869655a24a78  ./research/poc_002/capability.py

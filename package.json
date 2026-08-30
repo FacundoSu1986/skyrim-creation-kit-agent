@@ -6,7 +6,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "npx tsx src/db/migrate.ts",
+    "db:adopt-existing": "npx tsx src/db/adopt.ts"
   },
   "dependencies": {
     "dotenv": "17.4.2",
@@ -27,6 +30,7 @@
     "eslint-config-next": "16.3.2",
     "postcss": "8.5.26",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.12",
     "typescript": "5.9.3"
   }
 }

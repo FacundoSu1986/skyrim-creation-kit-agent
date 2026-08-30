@@ -1,11 +1,18 @@
 import {
   boolean,
   integer,
+  pgEnum,
   pgTable,
   serial,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+import { DISTRIBUTION_AUTHORIZATION_STATUSES } from "@/lib/research/licenses";
+
+export const distributionAuthorizationStatusEnum = pgEnum(
+  "distribution_authorization_status",
+  DISTRIBUTION_AUTHORIZATION_STATUSES,
+);
 
 export const sources = pgTable("research_sources", {
   id: serial("id").primaryKey(),
@@ -70,6 +77,11 @@ export const licenseEntries = pgTable("research_license_entries", {
   distribution: text("distribution").notNull(),
   risk: text("risk").notNull(),
   legalReviewRequired: boolean("legal_review_required").notNull(),
+  distributionAuthorizationStatus: distributionAuthorizationStatusEnum(
+    "distribution_authorization_status",
+  )
+    .notNull()
+    .default("NOT_APPLICABLE"),
   notes: text("notes").notNull(),
   sortOrder: integer("sort_order").notNull(),
 });
