@@ -40,6 +40,36 @@ sha256sum ./path/to/file >> MANIFEST.sha256
 
 A hash mismatch means the pinned baseline drifted; resolve it explicitly, do not ignore it.
 
+### Manifest scope
+
+The manifest is an **additional** gate, not a replacement for Git or CI. Git already
+guarantees blob integrity and CI proves the code. The manifest pins the files whose
+**silent change would be caught by neither**, because they are governance or evidence
+claims rather than executable behaviour.
+
+In scope (pinned):
+
+- governance: `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`, `README.md`, `.gitignore`;
+- architecture and research claims: `docs/**` (ADRs, roadmap, status, research);
+- research POC baselines: `research/**`;
+- CI definitions: `.github/**`;
+- Python tooling contract: `pyproject.toml`.
+
+Out of scope (deliberately not pinned):
+
+- the Discovery Desk application (`src/**`) and its root-level tests (`tests/**`),
+  covered by typecheck, lint, build and the migration-lifecycle job;
+- `package*.json`, covered by `npm ci` and `npm audit`;
+- generated artifacts and lockfiles that CI regenerates.
+
+**Adding a new research document to `docs/research/` must add its manifest entry in the
+same change.** PR #15 missed this for `docs/research/2026-08-28-mutagen-feasibility.md`
+while pinning the ADR it was based on, which is the inconsistency this section exists
+to prevent.
+
+Extending the perimeter — for example to migrations or other safety-critical SQL —
+requires an explicit decision recorded in this section. Do not widen it file by file.
+
 ## Safety
 
 No PR may introduce:

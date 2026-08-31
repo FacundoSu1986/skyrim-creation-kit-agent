@@ -7,12 +7,13 @@ f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/work
 5d6536ca5510ea645218519382498b9985bc98058de88c75ef8876e47d9b30d1  ./.github/workflows/poc-ipc.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 77293fbc82ac42032dacc8ac771a1cb6e3c01fe10522e340c59dea27db2a37a6  ./AGENTS.md
-625015e89e1ec19fe50e31c781f57afe2f82d58f04775c3f01e6b6ae36418300  ./CONTRIBUTING.md
+ccd0f784c028952ff2359573ccaf2dda0080d6a3e38a35cf0038ac1d8bdd4e77  ./CONTRIBUTING.md
 6ecba72873d6067779657cfd3367fd02b9f06954c5de650e51396894dde2c8f3  ./README.md
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
-f48078955f04218998526abda758078d4ad2d380f2294105ca30792f45335ab6  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
+3e5fdc097a233c352b8e698cc732f5a072e259df77975a308f81aee3aab934f5  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
+afdd60f978acc78440ff11664f70dac38c981ec35f28fac0dfa341eddac5821b  ./docs/research/2026-08-28-mutagen-feasibility.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md
 ec381d6e48340621ddcc581357ba19eacef8e1d69173d07d73240ff29c75eff9  ./docs/research/capability-matrix.md
@@ -25,7 +26,7 @@ c206dd7d4b2083a125c870a5604564428cf38abc59d9472d77e9c381d2dfaad4  ./docs/researc
 ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/research/problem-definition.md
 13aa51e639c698feff0773a95b76c300b3887910aa13a802176c6027c39cb64d  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
-3030ea62e748012091b4ac86eaf5594c9c14aeb329665721ccf396a793e17d82  ./docs/roadmap.md
+6ddef9c9c878cf742c8a2bf90dfe73f1c366372699270408ad292fafe357d9cb  ./docs/roadmap.md
 be0c535370a5aa61ee773be47491707a3dcb436b4d90f8cacc77708e6b66677c  ./docs/status.md
 839b3769c6266e0963bbdd502bb09cab631851638569cadba4460c4d5aef2533  ./pyproject.toml
 886dbf87e0b5e30c772211f90598e7ac8211bcbdafe9bcf20f7914f9305c0fa1  ./research/poc_002/README.md

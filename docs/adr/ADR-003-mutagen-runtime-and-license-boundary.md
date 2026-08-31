@@ -208,9 +208,24 @@ Requirements for a future Mutagen test fixture:
 ### Technical Preference
 **L3 (Separately maintained GPL worker repository) + `DOTNET_MUTAGEN_READONLY_V1` Profile**.
 
+> **Owner technical distribution choice: L3 — recorded 2026-08-31.**
+> This closes the *technical* decision only. It is **not** a legal determination and does
+> not authorize packaging, distribution, or implementation.
+
+Consequence: this MIT-licensed repository is to contain **zero copyleft source code**.
+The GPL-3.0 worker belongs in a separate, explicitly GPL-3.0 repository, to be created
+only after legal review closes — never before.
+
 ### Legal Authorization
 **NOT GRANTED. Status: `LEGAL_REVIEW_REQUIRED`.**
 Formal legal review must evaluate the distribution model (L2 vs. L3 vs. L4) before any productive or research packaging occurs.
+
+Recording a technical preference does not alter this status: a technical choice is not a
+legal determination. This ADR remains `PROPOSED` and `POC-MUTAGEN-001` remains
+`BLOQUEADO` until legal review closes.
+
+**Unblocking requires a named owner and a target date for that review.** As recorded,
+the block has neither, which is the only reason this ADR is still open.
 
 ---
 
@@ -218,5 +233,7 @@ Formal legal review must evaluate the distribution model (L2 vs. L3 vs. L4) befo
 
 1. Complete review of the GNU GPL FAQ citations and separate-program boundaries.
 2. Formal resolution of the distribution model (L2 vs L3).
+   - *Technical choice: **resolved 2026-08-31 → L3**.*
+   - *Legal determination: **still `LEGAL_REVIEW_REQUIRED`. Unresolved.***
 3. Agreement on the Closed-World Worker Launch Profile specification generalizing ADR-002.
 4. Definition of a validated clean-room fixture strategy.
