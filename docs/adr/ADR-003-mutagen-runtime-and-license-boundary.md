@@ -243,5 +243,5 @@ the technical distribution choice is settled (L3), the legal determination is no
 2. Formal resolution of the distribution model (L2 vs L3).
    - *Technical choice: **resolved 2026-08-31 → L3**.*
    - *Legal determination: **still `LEGAL_REVIEW_REQUIRED`. Unresolved.***
-3. Agreement on the Closed-World Worker Launch Profile specification generalizing ADR-002.
+3. Agreement on the Closed-World Worker Launch Profile specification generalizing ADR-002 (or definition of a separate external-tool boundary as established by [ADR-004](ADR-004-external-tool-execution-contract.md) for ETEC, leaving ADR-002 unchanged).
 4. Definition of a validated clean-room fixture strategy.

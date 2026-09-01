@@ -31,6 +31,8 @@ Implementation: [`../../research/poc_002/`](../../research/poc_002/).
 
 Verify that the official compiler is invoked with explicit arguments, no shell, bounded timeout, captured stdout/stderr and output PEX verification. The compiler binary was not present in the research environment.
 
+**Not started.** Acceptance criteria are pre-registered (2026-09-01) in the [POC-003 pre-registration](2026-09-01-poc-003-pre-registration.md), under the `PAPYRUS_COMPILE_DRYRUN_V1` profile defined by [ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (PROPOSED). POC-003 does not use the ADR-002 IPC protocol: the compiler cannot speak it. See the identifier rule below.
+
 ## POC-004 — xEdit allowlisted `-script -autoexit`
 
 **Status:** `NO VERIFICADO`
