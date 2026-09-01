@@ -7,12 +7,12 @@ f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/work
 5d6536ca5510ea645218519382498b9985bc98058de88c75ef8876e47d9b30d1  ./.github/workflows/poc-ipc.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 77293fbc82ac42032dacc8ac771a1cb6e3c01fe10522e340c59dea27db2a37a6  ./AGENTS.md
-ccd0f784c028952ff2359573ccaf2dda0080d6a3e38a35cf0038ac1d8bdd4e77  ./CONTRIBUTING.md
+8a8f479b61846180abd88aea6b64d6da3e17dfb5d480304836da3985d6a9983c  ./CONTRIBUTING.md
 6ecba72873d6067779657cfd3367fd02b9f06954c5de650e51396894dde2c8f3  ./README.md
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
-3e5fdc097a233c352b8e698cc732f5a072e259df77975a308f81aee3aab934f5  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
+fa77176a235b6e1d5da581b41ae38add28d9afa843b4dfebe0fa0b797dad3f82  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
 afdd60f978acc78440ff11664f70dac38c981ec35f28fac0dfa341eddac5821b  ./docs/research/2026-08-28-mutagen-feasibility.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md

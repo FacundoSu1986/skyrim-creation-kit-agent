@@ -224,8 +224,16 @@ Recording a technical preference does not alter this status: a technical choice 
 legal determination. This ADR remains `PROPOSED` and `POC-MUTAGEN-001` remains
 `BLOQUEADO` until legal review closes.
 
-**Unblocking requires a named owner and a target date for that review.** As recorded,
-the block has neither, which is the only reason this ADR is still open.
+**Unblocking requires two distinct roles, not one**: a *coordination owner* who drives
+the review to completion, and a *qualified legal reviewer* who emits the determination.
+Recording a target date is only meaningful once the second role is filled; a date
+invented to close a checkbox is worse than no date, because it converts an open legal
+question into a scheduled one nobody has capacity to answer.
+
+As recorded, **the legal-review work item has neither a named owner nor a date. That is
+not the only open item.** Acceptance criteria 3 (Closed-World profile agreement) and 4
+(clean-room fixture strategy) also remain open, and criterion 2 is only half-resolved:
+the technical distribution choice is settled (L3), the legal determination is not.
 
 ---
 

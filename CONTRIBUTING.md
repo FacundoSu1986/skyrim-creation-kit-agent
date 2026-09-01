@@ -42,10 +42,12 @@ A hash mismatch means the pinned baseline drifted; resolve it explicitly, do not
 
 ### Manifest scope
 
-The manifest is an **additional** gate, not a replacement for Git or CI. Git already
-guarantees blob integrity and CI proves the code. The manifest pins the files whose
-**silent change would be caught by neither**, because they are governance or evidence
-claims rather than executable behaviour.
+The manifest is an **additional** gate, not a replacement for Git or CI. Git provides
+content-addressed version history; CI validates selected executable invariants. Neither
+makes the other unnecessary, and CI does not prove correctness — it proves the
+properties it was written to check. The manifest pins the files whose **silent change
+would be caught by neither**, because they are governance or evidence claims rather
+than executable behaviour.
 
 In scope (pinned):
 
@@ -60,7 +62,10 @@ Out of scope (deliberately not pinned):
 - the Discovery Desk application (`src/**`) and its root-level tests (`tests/**`),
   covered by typecheck, lint, build and the migration-lifecycle job;
 - `package*.json`, covered by `npm ci` and `npm audit`;
-- generated artifacts and lockfiles that CI regenerates.
+- generated artifacts and dependency lockfiles, which are governed by their native
+  package and tooling workflows plus the CI checks that consume them. Note that
+  `npm ci` installs *from* `package-lock.json`; it does not regenerate it, so the
+  lockfile is a reviewed input rather than a derived output.
 
 **Adding a new research document to `docs/research/` must add its manifest entry in the
 same change.** PR #15 missed this for `docs/research/2026-08-28-mutagen-feasibility.md`
