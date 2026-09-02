@@ -29,22 +29,21 @@ export interface BaselineFingerprintResult {
 /**
  * IMMUTABLE FINGERPRINT — DO NOT SYNC WITH THE CURRENT SCHEMA.
  *
- * `EXPECTED_BASELINE_SCHEMA` is NOT a mirror of `src/db/schema.ts` nor of the latest
- * Drizzle migration. It is a frozen snapshot of the **pre-PR database** that this
- * script is authorized to adopt: the state produced by `drizzle/0000_baseline.sql`
- * and nothing after it.
+ * `EXPECTED_BASELINE_SCHEMA` is an immutable historical fingerprint of the
+ * pre-migration baseline represented by migration `0000_baseline.sql`. It
+ * intentionally does not track the current application schema or subsequent
+ * Drizzle migrations.
  *
- * Divergence from the current schema is therefore *expected and correct*. Adding
- * `distribution_authorization_status` (migration 0001) here would not "fix a drift":
- * it would make adoption accept databases that were never eligible, silently
- * weakening the guarantee this check exists to provide.
+ * Divergence from the current schema is expected and correct. The independent
+ * `unexpectedCriticalColumns` guard explicitly requires
+ * `research_license_entries.distribution_authorization_status` to be absent.
+ * Adding that column to the expected baseline schema without redesigning the
+ * adoption contract would not advance or widen the accepted baseline; rather,
+ * it would make the fingerprint internally inconsistent and impossible to satisfy
+ * (failing via `missingColumns` if absent, or `unexpectedCriticalColumns` if present).
  *
- * The companion assertion enforces this: `research_license_entries.
- * distribution_authorization_status` MUST NOT exist on a pre-PR database (see
- * `unexpectedCriticalColumns`), and its presence fails adoption closed.
- *
- * Change this only when the adoption target itself changes — never as part of a
- * routine schema migration.
+ * Change this snapshot only when the supported adoption target itself deliberately
+ * changes through an explicit contract revision — never as part of routine migrations.
  */
 export const EXPECTED_BASELINE_SCHEMA: Record<string, ColumnSpec[]> = {
   research_architecture_options: [
