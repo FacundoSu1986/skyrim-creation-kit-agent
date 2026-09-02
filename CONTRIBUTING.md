@@ -31,11 +31,20 @@ Do not report a test count manually: copy it from the actual runner output.
 `MANIFEST.sha256` pins SHA-256 hashes for the governance, architecture/research, and POC-002
 baseline files listed inside it (paths relative to the repository root, `./`-prefixed,
 `sha256sum` text format). If an intentionally changed file is covered by the manifest,
-regenerate the affected entries in the same change; never leave stale hashes behind:
+replace or regenerate its entry in the same change; never leave stale hashes or duplicate
+rows behind (appending with `>>` without removing the old row leaves a stale entry that
+fails `sha256sum -c` verification):
 
 ```bash
-# from the repository root, for each covered file:
+# from the repository root, replace an existing entry (do not append duplicate rows):
+grep -v ' \./path/to/file$' MANIFEST.sha256 > MANIFEST.tmp && mv MANIFEST.tmp MANIFEST.sha256
 sha256sum ./path/to/file >> MANIFEST.sha256
+
+# for a newly added covered file, append its entry:
+sha256sum ./path/to/new-file >> MANIFEST.sha256
+
+# verify all entries pass:
+sha256sum -c MANIFEST.sha256
 ```
 
 A hash mismatch means the pinned baseline drifted; resolve it explicitly, do not ignore it.
@@ -67,10 +76,13 @@ Out of scope (deliberately not pinned):
   `npm ci` installs *from* `package-lock.json`; it does not regenerate it, so the
   lockfile is a reviewed input rather than a derived output.
 
-**Adding a new research document to `docs/research/` must add its manifest entry in the
-same change.** PR #15 missed this for `docs/research/2026-08-28-mutagen-feasibility.md`
-while pinning the ADR it was based on, which is the inconsistency this section exists
-to prevent.
+**Adding any new file within the declared in-scope perimeter (`docs/**`, `research/**`,
+`.github/**`, or root governance/tooling files) requires adding its manifest entry in the
+same change.** Because `sha256sum -c` only validates entries explicitly listed in the
+manifest, omitting a new in-scope file would silently bypass the integrity gate.
+PR #15 missed this for `docs/research/2026-08-28-mutagen-feasibility.md` while pinning
+the ADR it was based on; this rule ensures all new covered files across any declared scope
+are pinned at introduction.
 
 Extending the perimeter — for example to migrations or other safety-critical SQL —
 requires an explicit decision recorded in this section. Do not widen it file by file.
