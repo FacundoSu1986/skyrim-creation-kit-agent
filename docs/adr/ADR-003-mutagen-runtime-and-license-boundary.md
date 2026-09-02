@@ -208,9 +208,32 @@ Requirements for a future Mutagen test fixture:
 ### Technical Preference
 **L3 (Separately maintained GPL worker repository) + `DOTNET_MUTAGEN_READONLY_V1` Profile**.
 
+> **Owner technical distribution choice: L3 — recorded 2026-08-31.**
+> This closes the *technical* decision only. It is **not** a legal determination and does
+> not authorize packaging, distribution, or implementation.
+
+Consequence: this MIT-licensed repository is to contain **zero copyleft source code**.
+The GPL-3.0 worker belongs in a separate, explicitly GPL-3.0 repository, to be created
+only after legal review closes — never before.
+
 ### Legal Authorization
 **NOT GRANTED. Status: `LEGAL_REVIEW_REQUIRED`.**
 Formal legal review must evaluate the distribution model (L2 vs. L3 vs. L4) before any productive or research packaging occurs.
+
+Recording a technical preference does not alter this status: a technical choice is not a
+legal determination. This ADR remains `PROPOSED` and `POC-MUTAGEN-001` remains
+`BLOQUEADO` until legal review closes.
+
+**Unblocking requires two distinct roles, not one**: a *coordination owner* who drives
+the review to completion, and a *qualified legal reviewer* who emits the determination.
+Recording a target date is only meaningful once the second role is filled; a date
+invented to close a checkbox is worse than no date, because it converts an open legal
+question into a scheduled one nobody has capacity to answer.
+
+As recorded, **the legal-review work item has neither a named owner nor a date. That is
+not the only open item.** Acceptance criteria 3 (Closed-World profile agreement) and 4
+(clean-room fixture strategy) also remain open, and criterion 2 is only half-resolved:
+the technical distribution choice is settled (L3), the legal determination is not.
 
 ---
 
@@ -218,5 +241,7 @@ Formal legal review must evaluate the distribution model (L2 vs. L3 vs. L4) befo
 
 1. Complete review of the GNU GPL FAQ citations and separate-program boundaries.
 2. Formal resolution of the distribution model (L2 vs L3).
+   - *Technical choice: **resolved 2026-08-31 → L3**.*
+   - *Legal determination: **still `LEGAL_REVIEW_REQUIRED`. Unresolved.***
 3. Agreement on the Closed-World Worker Launch Profile specification generalizing ADR-002.
 4. Definition of a validated clean-room fixture strategy.

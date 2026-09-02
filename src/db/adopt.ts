@@ -26,6 +26,25 @@ export interface BaselineFingerprintResult {
   errors: string[];
 }
 
+/**
+ * IMMUTABLE FINGERPRINT — DO NOT SYNC WITH THE CURRENT SCHEMA.
+ *
+ * `EXPECTED_BASELINE_SCHEMA` is an immutable historical fingerprint of the
+ * pre-migration baseline represented by migration `0000_baseline.sql`. It
+ * intentionally does not track the current application schema or subsequent
+ * Drizzle migrations.
+ *
+ * Divergence from the current schema is expected and correct. The independent
+ * `unexpectedCriticalColumns` guard explicitly requires
+ * `research_license_entries.distribution_authorization_status` to be absent.
+ * Adding that column to the expected baseline schema without redesigning the
+ * adoption contract would not advance or widen the accepted baseline; rather,
+ * it would make the fingerprint internally inconsistent and impossible to satisfy
+ * (failing via `missingColumns` if absent, or `unexpectedCriticalColumns` if present).
+ *
+ * Change this snapshot only when the supported adoption target itself deliberately
+ * changes through an explicit contract revision — never as part of routine migrations.
+ */
 export const EXPECTED_BASELINE_SCHEMA: Record<string, ColumnSpec[]> = {
   research_architecture_options: [
     { name: "id", dataType: "integer", isNullable: "NO" },

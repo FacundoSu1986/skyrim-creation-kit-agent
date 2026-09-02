@@ -10,13 +10,13 @@ This roadmap is evidence-gated. Passing one proof does not authorize every later
 
 **Status:** `ACCEPTED` (2026-08-25).
 
-Next architectural unit: ADR-002 + POC-IPC identifiers (isolated-worker IPC protocol and transactional boundaries). Acceptance does not by itself authorize any implementation.
+Next architectural unit at the time of acceptance: ADR-002 + POC-IPC identifiers (isolated-worker IPC protocol and transactional boundaries). Acceptance did not by itself authorize any implementation; POC-IPC-001 was authorized separately and is now `PASS`.
 
 ## ADR-002 — Isolated worker IPC and transactional boundaries
 
 **Status:** `ACCEPTED` (2026-08-25, after four architecture review rounds).
 
-Defines the trusted-root, bounded-I/O, success-contract, timeout/cleanup, path-containment, and evidence-semantics rules that **POC-IPC-001** must implement. Acceptance establishes the architecture contract only — no IPC code exists yet.
+Defines the trusted-root, bounded-I/O, success-contract, timeout/cleanup, path-containment, and evidence-semantics rules that **POC-IPC-001** implemented. Acceptance established the architecture contract only; the implementation arrived later with POC-IPC-001, under its own evidence rules (`OS_SANDBOX` remains `NO VERIFICADO`).
 
 ## POC-002 — Synthetic TES4 safety pipeline
 
