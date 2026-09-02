@@ -36,9 +36,12 @@ rows behind (appending with `>>` without removing the old row leaves a stale ent
 fails `sha256sum -c` verification):
 
 ```bash
-# from the repository root, replace an existing entry (do not append duplicate rows):
-grep -v ' \./path/to/file$' MANIFEST.sha256 > MANIFEST.tmp && mv MANIFEST.tmp MANIFEST.sha256
-sha256sum ./path/to/file >> MANIFEST.sha256
+# from the repository root, compute hash first and update failure-atomically:
+sha256sum ./path/to/file > MANIFEST.entry && \
+grep -v ' \./path/to/file$' MANIFEST.sha256 > MANIFEST.tmp && \
+cat MANIFEST.entry >> MANIFEST.tmp && \
+mv MANIFEST.tmp MANIFEST.sha256 && \
+rm -f MANIFEST.entry
 
 # for a newly added covered file, append its entry:
 sha256sum ./path/to/new-file >> MANIFEST.sha256
@@ -77,7 +80,8 @@ Out of scope (deliberately not pinned):
   lockfile is a reviewed input rather than a derived output.
 
 **Adding any new file within the declared in-scope perimeter (`docs/**`, `research/**`,
-`.github/**`, or root governance/tooling files) requires adding its manifest entry in the
+`.github/**`, or explicit root-pinned files: `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`,
+`README.md`, `.gitignore`, `pyproject.toml`) requires adding its manifest entry in the
 same change.** Because `sha256sum -c` only validates entries explicitly listed in the
 manifest, omitting a new in-scope file would silently bypass the integrity gate.
 PR #15 missed this for `docs/research/2026-08-28-mutagen-feasibility.md` while pinning
