@@ -11,7 +11,7 @@ Versions refer to the committed package-lock.json, not a potentially stale local
 
 | Package | Version | License | Upstream / attribution source |
 | --- | --- | --- | --- |
-| dotenv | 17.4.2 | MIT | [Mot / dotenv contributors](https://github.com/motdotla/dotenv) |
+| dotenv | 17.4.2 | BSD-2-Clause | [Mot / dotenv contributors](https://github.com/motdotla/dotenv) |
 | drizzle-orm | 0.45.2 | Apache-2.0 | [Drizzle Team and contributors](https://github.com/drizzle-team/drizzle-orm) |
 | next | 16.3.4 | MIT | [Vercel and Next.js contributors](https://github.com/vercel/next.js) |
 | pg | 8.23.0 | MIT | [Brian Carlson and node-postgres contributors](https://github.com/brianc/node-postgres) |

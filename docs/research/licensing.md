@@ -60,8 +60,10 @@ cover direct dependencies, non-permissive/transitive license considerations, fon
 
 | Component used by the desk | License in the reviewed source | Distribution considerations |
 | --- | --- | --- |
-| Next.js, React, React DOM, dotenv, node-postgres | MIT | Preserve applicable copyright and license notices with distributed copies |
-| Drizzle ORM / Kit | Apache-2.0 | Preserve license, applicable notices, and change notices where required |
+| Next.js, React, React DOM, node-postgres | MIT | Preserve applicable copyright and license notices with distributed copies |
+| dotenv 17.4.2 | BSD-2-Clause | Preserve copyright notice and disclaimer with distributed copies |
+| drizzle-orm 0.45.2 | Apache-2.0 | Preserve license, applicable notices, and change notices where required |
+| drizzle-kit 0.31.10 (dev) | MIT | Development tooling; preserve notices for covered material actually redistributed |
 | sharp and platform binaries / libvips | Apache-2.0; LGPL-3.0-or-later; some combined expressions | Optional runtime packages; inspect shipped native libraries and satisfy their actual license/source/relinking requirements |
 | lightningcss and axe-core | MPL-2.0 | Development dependencies; source/notice duties apply to covered material actually redistributed, not automatically to generated CSS |
 | caniuse-lite | CC-BY-4.0 | Preserve attribution and license information when sharing covered data |

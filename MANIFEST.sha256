@@ -24,7 +24,7 @@ ebd0506688deecfbfdb61d52c6be4c6eaae3de5e08aad418c84671e19a775c4d  ./docs/researc
 7bd357550fb117cf9032697c2f1e93fdebd4ea1b52e5a4741b411c32f5839cf0  ./docs/research/experiments.md
 c206dd7d4b2083a125c870a5604564428cf38abc59d9472d77e9c381d2dfaad4  ./docs/research/feasibility-report.md
 56375836819febdb8ffa1ad3329b8cbd3ceccfcb795e1312a6638b9763d34015  ./docs/research/gates.md
-ad868d1ac74ac962cfe44c29f47a69120bcdd2ea4a7ad6fbd5e2d33e19fea021  ./docs/research/licensing.md
+da132dc0bacb6ae7dea8ca9263764f977fadd70a5712f721c310eb1c0efc0851  ./docs/research/licensing.md
 ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/research/problem-definition.md
 04d86c772914919e1837cf7b2f5f54ec9e1f71af8eeba420797aa9dea59ac6e8  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
@@ -60,5 +60,5 @@ f3be4bda2a4c55b4c38617778d4505b92425531dbcc76a80c8314e8c4e172488  ./research/poc
 bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b  ./public/licenses/fraunces-OFL.txt
 37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d  ./public/licenses/ibmplexmono-OFL.txt
 37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d  ./public/licenses/ibmplexsans-OFL.txt
-e1634cb0629fac0e38138d264558d0c05d84c4d4a74bcd223b62b26100f086c8  ./public/licenses/THIRD_PARTY_NOTICES.md
+5c4f047702e7cc0aed0045f024a9e800dbfe881105c3233fc6466aa844bef9d2  ./public/licenses/THIRD_PARTY_NOTICES.md
 fdc6c435731d1b287f1e0c84da4f35dc7ce50d9edfae409d2b15cc0c260d0979  ./public/licenses/.gitattributes
