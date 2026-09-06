@@ -33,6 +33,13 @@ Verify that the official compiler is invoked with explicit arguments, no shell, 
 
 **Not started.** Acceptance criteria are pre-registered (2026-09-01) in the [POC-003 pre-registration](2026-09-01-poc-003-pre-registration.md), under the `PAPYRUS_COMPILE_DRYRUN_V1` profile defined by [ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (PROPOSED). POC-003 does not use the ADR-002 IPC protocol: the compiler cannot speak it. See the identifier rule below.
 
+**Executed 2026-09-06.** Result recorded in
+[2026-09-06-poc-003-results.md](2026-09-06-poc-003-results.md): 14 of 15
+pre-registered criteria passed; mandatory criterion 14 (determinism) failed with
+`DETERMINISM_MISMATCH`. POC-003 is not `PASS`; repository status remains
+`NO VERIFICADO` and `DETERMINISTIC_OUTPUT` is `NO VERIFICADO`. Implementation:
+[`../../research/poc_003/`](../../research/poc_003/).
+
 ## POC-004 — xEdit allowlisted `-script -autoexit`
 
 **Status:** `NO VERIFICADO`

@@ -154,3 +154,18 @@ Repository status remains `NO VERIFICADO` unless all mandatory criteria pass, in
 - repository status remains `NO VERIFICADO`.
 
 A run that cannot measure a mandatory criterion cannot be reported as `PASS` (failing outcome code recorded, repository status remains `NO VERIFICADO`).
+
+## Result (recorded after execution)
+
+Nothing above was altered: no mandatory criterion, pass rule, failure rule,
+determinism requirement, process-tree requirement or input-snapshot semantic
+was changed after the result was known.
+
+- **Executed:** 2026-09-06 under profile `PAPYRUS_COMPILE_DRYRUN_V1`.
+- **Outcome:** 14 of 15 criteria passed; mandatory criterion 14 (determinism)
+  failed with `DETERMINISM_MISMATCH`. POC-003 is therefore not `PASS`.
+- **Repository status:** `NO VERIFICADO`.
+- **`DETERMINISTIC_OUTPUT`:** `NO VERIFICADO` (six compiles of byte-identical
+  input in one path produced six distinct digests).
+- **Results:** [2026-09-06-poc-003-results.md](2026-09-06-poc-003-results.md)
+- **Evidence:** [`research/poc_003/evidence/`](../../research/poc_003/evidence/)
