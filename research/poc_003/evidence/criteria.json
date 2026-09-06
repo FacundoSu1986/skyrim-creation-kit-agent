@@ -1,0 +1,163 @@
+{
+  "rows": [
+    {
+      "artifact": "run:all:details.argv_sanitized",
+      "criterion": "Fixed argv",
+      "number": 1,
+      "observed_evidence": "5/5 runs with the single permitted 5-element shape; POLICY_VIOLATION present: False",
+      "outcome_code": null,
+      "reason": "argv is produced only by profile.build_argv()",
+      "required_evidence": "Every argv element is determined by the profile; operation-specific values enter only as validated typed tokens resolved trusted-side; no raw caller-controlled string reaches argv",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.shell_processes_in_launch_tree",
+      "criterion": "No shell",
+      "number": 2,
+      "observed_evidence": "shell=False on 5/5 runs; shell processes observed in launch trees: none",
+      "outcome_code": null,
+      "reason": "spawned with shell=False and no shell binary appeared in the launch tree",
+      "required_evidence": "Spawn uses shell=False; no shell process is introduced into the process tree rooted at the POC-003 tool launch",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.executable_sha256",
+      "criterion": "Executable integrity",
+      "number": 3,
+      "observed_evidence": "pinned hash matched on 5/5 runs; sha256=32281080fd8c8382...",
+      "outcome_code": null,
+      "reason": "hash recomputed pre-spawn on every run",
+      "required_evidence": "Pinned SHA-256 of PapyrusCompiler.exe matches before spawn",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.expected_output_rel",
+      "criterion": "Workspace containment",
+      "number": 4,
+      "observed_evidence": "expected output declared under candidates/ on 5/5 runs; WORKSPACE_VIOLATION present: False",
+      "outcome_code": null,
+      "reason": "post-resolve re-containment re-checked before acceptance",
+      "required_evidence": "Every resolved output path lies strictly inside candidates/ after resolve(); temp/ reserved for environment redirects",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.stdout_bytes_retained",
+      "criterion": "Bounded output",
+      "number": 5,
+      "observed_evidence": "caps=A:65536B(retained 237/0, truncated=False/False), B:65536B(retained 237/0, truncated=False/False), long:65536B(retained 185/0, truncated=False/False), negative:65536B(retained 347/146, truncated=False/False), timeout:65536B(retained 68/0, truncated=False/False)",
+      "outcome_code": null,
+      "reason": "readers cap retained bytes and keep draining so a full pipe cannot deadlock the tool",
+      "required_evidence": "stdout and stderr are capped during transfer, not after",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:timeout:details.timed_out",
+      "criterion": "Deadline",
+      "number": 6,
+      "observed_evidence": "timeout run: deadline=8.0s elapsed=8.031s outcome=PROCESS_TIMEOUT",
+      "outcome_code": null,
+      "reason": "deadline expired and the run was failed, not salvaged",
+      "required_evidence": "A hang produces failure within the configured budget",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:timeout:details.direct_child_alive_after_cleanup",
+      "criterion": "Direct-child termination",
+      "number": 7,
+      "observed_evidence": "timeout run: direct_child_alive_after_cleanup=False; mechanisms=['deadline_expired', 'job_object_close', 'direct_child_terminate']",
+      "outcome_code": null,
+      "reason": "verified with GetExitCodeProcess, not by snapshot presence",
+      "required_evidence": "After a timeout, the spawned compiler process is dead on Windows",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.descendants_alive_after_cleanup",
+      "criterion": "Descendant behaviour",
+      "number": 8,
+      "observed_evidence": "reliable on 5/5 runs; descendants observed: {'long': {'20620': 'PapyrusAssembler.exe'}, 'timeout': {'22628': 'PapyrusAssembler.exe'}}; survivors: {'A': [], 'B': [], 'negative': [], 'long': [], 'timeout': []}",
+      "outcome_code": null,
+      "reason": "Toolhelp32 sampling during the run; aliveness re-checked post-cleanup",
+      "required_evidence": "Process tree is observed reliably AND after forced cleanup no descendant associated with the tool remains alive",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:A/B:details.output_size, run:negative:outcome_code",
+      "criterion": "Output freshness & creation",
+      "number": 9,
+      "observed_evidence": "pre-existing output never present: True; A: size=506; B: size=506; negative fixture: success=False outcome=PROCESS_FAILED",
+      "outcome_code": null,
+      "reason": "negative fixture proves compiler failure never becomes orchestrator success",
+      "required_evidence": "Expected output absent before spawn (fail-closed if pre-existing); exit code zero implies new expected .pex exists with size > 0",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:A/B:details.output_sha256_recomputed",
+      "criterion": "Output hash",
+      "number": 10,
+      "observed_evidence": "A: a5c5684d422d70e8... == a5c5684d422d70e8...; B: a3c0e4258da1b6b9... == a3c0e4258da1b6b9...",
+      "outcome_code": null,
+      "reason": "artifact read and hashed twice, independently",
+      "required_evidence": "The .pex SHA-256 is recorded in evidence and independently recomputed from the produced artifact (recomputed == recorded)",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.import_snapshot_signature_pre",
+      "criterion": "Input immutability",
+      "number": 11,
+      "observed_evidence": "signatures matched on 5/5 runs; INPUT_HASH_MISMATCH present: False",
+      "outcome_code": null,
+      "reason": "recursive regular-file snapshot with symlink/junction rejection",
+      "required_evidence": "All declared read-only inputs (source script in input/, allowlisted flags.flg, and import root via IMPORT_ROOT_SNAPSHOT_V1) are hashed pre-spawn and unchanged across the run",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:details.workspace_added_paths",
+      "criterion": "No unexpected outputs",
+      "number": 12,
+      "observed_evidence": "unexpected outputs: none",
+      "outcome_code": null,
+      "reason": "whole-workspace snapshot diffed; logs/ and temp/ are declared scratch",
+      "required_evidence": "No file appears that the profile did not declare",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "run:all:logs/stdout.log, run:all:logs/stderr.log",
+      "criterion": "Diagnostics capture",
+      "number": 13,
+      "observed_evidence": "A: out=237B err=0B; B: out=237B err=0B; long: out=185B err=0B; negative: out=347B err=146B; timeout: out=68B err=0B",
+      "outcome_code": null,
+      "reason": "stored as untrusted material; never used as a semantic pass gate",
+      "required_evidence": "Compiler stdout and stderr are captured, bounded by stream caps, and recorded under logs/ as untrusted evidence (no semantic filtering gated in v1)",
+      "verdict": "PASS"
+    },
+    {
+      "artifact": "bundle:determinism",
+      "criterion": "Determinism",
+      "number": 14,
+      "observed_evidence": "SHA256_A=a5c5684d422d70e8f76d6187... SHA256_B=a3c0e4258da1b6b9d405aa82... equal=False",
+      "outcome_code": "DETERMINISM_MISMATCH",
+      "reason": "mandatory criterion; a difference is never reclassified post hoc",
+      "required_evidence": "Two compiles over identical input in separate workspaces agree",
+      "verdict": "FAIL"
+    },
+    {
+      "artifact": "research/poc_003/fixtures/",
+      "criterion": "Fixture provenance",
+      "number": 15,
+      "observed_evidence": "in-repo .psc fixtures hashed: 4: fixture_compile_error/Poc003Broken.psc, fixture_compile_error/Poc003Types.psc, fixture_success/Poc003Minimal.psc, fixture_success/Poc003Types.psc (non-.psc fixture files: 1)",
+      "outcome_code": null,
+      "reason": "fixtures are synthetic and redistributable under this repository's license",
+      "required_evidence": "No Bethesda-authored .psc is committed; the fixture is own-authored",
+      "verdict": "PASS"
+    }
+  ],
+  "summary": {
+    "all_pass": false,
+    "failed": 1,
+    "failing_numbers": [
+      14
+    ],
+    "passed": 14,
+    "total": 15
+  }
+}
