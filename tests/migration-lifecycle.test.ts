@@ -9,6 +9,7 @@ import {
   verifyBaselineFingerprint,
 } from "../src/db/adopt";
 import { runMigrations } from "../src/db/migrate";
+import { verifyLicenseNoticesMigration } from "./license-notices-migration";
 
 const baseDatabaseUrl =
   process.env.TEST_DATABASE_URL ||
@@ -608,6 +609,13 @@ async function runDuplicateHistoryNegativeTest() {
 
 async function main() {
   try {
+    await createEmptyDatabase("test_license_notices");
+    const noticesPool = new Pool({ connectionString: getDbUrl("test_license_notices") });
+    try {
+      await verifyLicenseNoticesMigration(noticesPool);
+    } finally {
+      await noticesPool.end();
+    }
     await runFreshDbTest();
     await runExistingDbAdoptionTest();
     await runFingerprintDriftTests();

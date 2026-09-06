@@ -69,6 +69,17 @@ export default async function LicensingPage() {
       <p className="kicker">{intro?.phase ?? "Phase 2"}</p>
       <h1 className="mt-3 text-5xl leading-none">Licensing matrix</h1>
       <p className="lede mt-5">{intro?.summary}</p>
+      <p className="mt-5">
+        <a className="underline" href="/licenses/THIRD_PARTY_NOTICES.md">
+          Third-party notices
+        </a>
+        {" · "}
+        <a className="underline" href="/licenses/fraunces-OFL.txt">Fraunces license</a>
+        {" · "}
+        <a className="underline" href="/licenses/ibmplexsans-OFL.txt">IBM Plex Sans license</a>
+        {" · "}
+        <a className="underline" href="/licenses/ibmplexmono-OFL.txt">IBM Plex Mono license</a>
+      </p>
       <div className="table-wrap mt-8">
         <table>
           <thead>

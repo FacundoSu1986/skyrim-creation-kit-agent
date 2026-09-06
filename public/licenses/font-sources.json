@@ -1,0 +1,23 @@
+[
+  {
+    "family": "fraunces",
+    "source": "https://raw.githubusercontent.com/google/fonts/581699fcc0df7715a0f944e28b1a18d38e4aad62/ofl/fraunces/OFL.txt",
+    "sha256": "bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b",
+    "upstreamSha256": "bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b",
+    "normalization": "CRLF to LF only; license wording unchanged"
+  },
+  {
+    "family": "ibmplexsans",
+    "source": "https://raw.githubusercontent.com/google/fonts/e0b9f6ca2d88f7d6e89710ee06b17d53a21f6a22/ofl/ibmplexsans/OFL.txt",
+    "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
+    "upstreamSha256": "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da",
+    "normalization": "CRLF to LF only; license wording unchanged"
+  },
+  {
+    "family": "ibmplexmono",
+    "source": "https://raw.githubusercontent.com/google/fonts/465b90c97b4de569e0b546bb2536900194cf7187/ofl/ibmplexmono/OFL.txt",
+    "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
+    "upstreamSha256": "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da",
+    "normalization": "CRLF to LF only; license wording unchanged"
+  }
+]

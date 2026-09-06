@@ -164,7 +164,7 @@ The research archive is under [`docs/research/`](docs/research/).
 
 Repository-authored core code is MIT licensed. That MIT grant covers original repository code only; it does **not** relicence external components, which retain their own licenses and obligations:
 
-- **Mutagen / Synthesis / Spriggit** — GPL-3.0-only. Any component linking them inherits copyleft obligations.
+- **Mutagen / Synthesis / Spriggit** — GPL-3.0-only. Distributing a combined work requires GPL compliance; MIT code may be combined with GPL code, but the combined work cannot be distributed under MIT alone.
 - **xEdit** — MPL-2.0 upstream; intended for external execution of a user install, never vendored or bundled.
 - **CKPE** — LGPLv3 code plus a Creation Kit EULA/legal overlay; remains `LEGAL_REVIEW_REQUIRED`.
 - **Creation Kit, PapyrusCompiler, vanilla `.psc`, Skyrim assets** — proprietary user-installed components; never redistributed or committed.
@@ -172,6 +172,13 @@ Repository-authored core code is MIT licensed. That MIT grant covers original re
 Process isolation is an architectural boundary, not an automatic licensing conclusion.
 
 See [`docs/research/licensing.md`](docs/research/licensing.md).
+
+The Discovery Desk also uses third-party npm packages and OFL fonts. See the
+[third-party notices](public/licenses/THIRD_PARTY_NOTICES.md), the
+[npm license inventory](docs/research/npm-license-inventory.md), and the bundled
+[font license texts](public/licenses/). These are separate from the MIT grant.
+The imported research ZIPs have [unresolved provenance](docs/research/source-manifest.md):
+the maintainer reports probable AI generation, not verified authorship or third-party permissions.
 
 ## Relationship to Sky-Claw
 

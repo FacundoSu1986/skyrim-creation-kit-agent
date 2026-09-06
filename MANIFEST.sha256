@@ -7,8 +7,8 @@ f1cf0f9775ab930e768315afbabd694abf16e17b8c2d3e07ada1055ef38ac4bc  ./.github/work
 5d6536ca5510ea645218519382498b9985bc98058de88c75ef8876e47d9b30d1  ./.github/workflows/poc-ipc.yml
 cfd9614b2e0cf3551b41d612cd8e4d130bc0c7648b57b6989511959e8c549ff0  ./.gitignore
 77293fbc82ac42032dacc8ac771a1cb6e3c01fe10522e340c59dea27db2a37a6  ./AGENTS.md
-87e1d6f35347b7296c80969a002a59d33c5e0ce3f5e8982033c2ba70019b5511  ./CONTRIBUTING.md
-6ecba72873d6067779657cfd3367fd02b9f06954c5de650e51396894dde2c8f3  ./README.md
+0e283315f6cae0efe221b57c61c95688f80f958764ddacd2fdb32a9b940c473c  ./CONTRIBUTING.md
+f337988ef806d4cc5cd5cc7b8091c767cf88e241763c6f7a03b6b34c1daa530a  ./README.md
 83281ddafa614f7e859fb247160e85291635a28b4424eebca6c4c64093bc9a7d  ./SECURITY.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
@@ -24,9 +24,9 @@ ebd0506688deecfbfdb61d52c6be4c6eaae3de5e08aad418c84671e19a775c4d  ./docs/researc
 7bd357550fb117cf9032697c2f1e93fdebd4ea1b52e5a4741b411c32f5839cf0  ./docs/research/experiments.md
 c206dd7d4b2083a125c870a5604564428cf38abc59d9472d77e9c381d2dfaad4  ./docs/research/feasibility-report.md
 56375836819febdb8ffa1ad3329b8cbd3ceccfcb795e1312a6638b9763d34015  ./docs/research/gates.md
-3ab2c96501d773557b244a4077d6037fe56395c67319e82ba97c5f3a152ba4db  ./docs/research/licensing.md
+9bdb9ba221ff5678f9067c6985727956a188e36110992da559b1d7b2d03689eb  ./docs/research/licensing.md
 ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/research/problem-definition.md
-13aa51e639c698feff0773a95b76c300b3887910aa13a802176c6027c39cb64d  ./docs/research/source-manifest.md
+04d86c772914919e1837cf7b2f5f54ec9e1f71af8eeba420797aa9dea59ac6e8  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
 6ddef9c9c878cf742c8a2bf90dfe73f1c366372699270408ad292fafe357d9cb  ./docs/roadmap.md
 be0c535370a5aa61ee773be47491707a3dcb436b4d90f8cacc77708e6b66677c  ./docs/status.md
@@ -55,3 +55,10 @@ aa77a6aef314214fb61ee957762974152cd62ae02c60e32e439f538117b4c3dd  ./research/poc
 d64164621a5295042799a83f54bfbb3683e630f39db880c3e8990f82ffe5ff01  ./research/poc_ipc_001/tests/test_workspace.py
 ff61e0f4163d8b745dce758a0d775c86f262104453330bc70426c00041385f0b  ./research/poc_ipc_001/README.md
 f3be4bda2a4c55b4c38617778d4505b92425531dbcc76a80c8314e8c4e172488  ./research/poc_ipc_001/tests/fixtures/synthetic_fixture.txt
+122a988962080347bb6a3ef7316e3e8fbc2d5dac8980a2ae8c492fc3d4d19b28  ./docs/research/npm-license-inventory.md
+7c3aab2d432653b239a5bf44c50059b371c417cc555e0ca15ca5645289ab6dd4  ./public/licenses/font-sources.json
+bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b  ./public/licenses/fraunces-OFL.txt
+37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d  ./public/licenses/ibmplexmono-OFL.txt
+37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d  ./public/licenses/ibmplexsans-OFL.txt
+5c4f047702e7cc0aed0045f024a9e800dbfe881105c3233fc6466aa844bef9d2  ./public/licenses/THIRD_PARTY_NOTICES.md
+fdc6c435731d1b287f1e0c84da4f35dc7ce50d9edfae409d2b15cc0c260d0979  ./public/licenses/.gitattributes
