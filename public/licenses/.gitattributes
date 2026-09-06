@@ -1,0 +1,4 @@
+# Keep the published license-text hashes reproducible on Windows and Linux.
+* text eol=lf
+# Preserve whitespace contained in the upstream OFL wording.
+*-OFL.txt whitespace=-blank-at-eol

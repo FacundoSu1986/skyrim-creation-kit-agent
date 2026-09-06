@@ -235,7 +235,7 @@ Differentiation, if this continues: license-clean planner, stricter rollback tha
 Link a library into our process.
 Distribute code or binaries to third parties.
 
-These are not equivalent. Executing the user's PapyrusCompiler is aligned with how CK itself works. Linking Mutagen makes our worker GPL-3.0. Distributing CreationKit.exe or vanilla .psc is forbidden.
+These are not equivalent. Executing the user's PapyrusCompiler remains subject to its EULA. MIT code may be combined with GPL code; distributing a combined Mutagen work requires GPL compliance, including corresponding source and notices, rather than MIT alone. This project forbids bundling CreationKit.exe or vanilla .psc.
 
 CKPE sits in a fourth category: a third-party patch of a tool whose EULA forbids modification. That is LEGAL_REVIEW_REQUIRED even though CKPE is LGPLv3.`,
   },

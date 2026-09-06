@@ -68,6 +68,7 @@ In scope (pinned):
 - research POC baselines: `research/**`;
 - CI definitions: `.github/**`;
 - Python tooling contract: `pyproject.toml`.
+- distribution notices: `public/licenses/**`, including font license texts and source records.
 
 Out of scope (deliberately not pinned):
 
@@ -79,7 +80,7 @@ Out of scope (deliberately not pinned):
   `npm ci` installs *from* `package-lock.json`; it does not regenerate it, so the
   lockfile is a reviewed input rather than a derived output.
 
-**Adding any new file within the declared in-scope perimeter (`docs/**`, `research/**`,
+**Adding any new file within the declared in-scope perimeter (`docs/**`, `research/**`, `public/licenses/**`,
 `.github/**`, or explicit root-pinned files: `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`,
 `README.md`, `.gitignore`, `pyproject.toml`) requires adding its manifest entry in the
 same change.** Because `sha256sum -c` only validates entries explicitly listed in the
@@ -90,6 +91,22 @@ are pinned at introduction.
 
 Extending the perimeter — for example to migrations or other safety-critical SQL —
 requires an explicit decision recorded in this section. Do not widen it file by file.
+
+The 2026-09-06 licensing review explicitly adds `public/licenses/**` to the perimeter:
+silent changes to distributed legal notices are not covered by application typechecking.
+
+## Third-party material
+
+For new or updated dependencies, refresh `docs/research/npm-license-inventory.md` from
+the committed lockfile and review changed licenses. Preserve actual upstream license
+and NOTICE files in shipped artifacts; the inventory does not replace them.
+Keep `public/licenses/` in deployments, including standalone packaging that copies
+Next.js public assets separately. Recheck font source records when changing fonts.
+
+For imported or AI-generated material, record the generator if known, supplied source
+material, copied/adapted portions, and the evidence of permission. Never infer ownership
+or third-party clearance from a prompt, generated answer, ZIP hash, or MIT header.
+Current unresolved imports are recorded in `docs/research/source-manifest.md`.
 
 ## Safety
 
