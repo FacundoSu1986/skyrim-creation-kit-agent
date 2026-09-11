@@ -1,7 +1,7 @@
 # ADR-004 — External tool execution contract
 
-- **Status:** PROPOSED
-- **Date:** 2026-09-01 (Revised: 2026-09-05)
+- **Status:** ACCEPTED
+- **Date:** 2026-09-01 (Revised: 2026-09-11)
 - **Scope:** Execution contract for third-party executable tools that do not and cannot speak the [ADR-002](ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) IPC protocol.
 - **Depends on:** [ADR-001](ADR-001-hybrid-headless-first-architecture.md) (ACCEPTED), [ADR-002](ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) (ACCEPTED).
 - **Related:** [ADR-003](ADR-003-mutagen-runtime-and-license-boundary.md) (PROPOSED) acceptance criterion 3; POC-003 (PapyrusCompiler dry-invoke); POC-004 (xEdit validator).
@@ -254,8 +254,8 @@ POC-003 passing does not close it.
 - Does not claim that any ETEC profile's tool is trustworthy. The tool is untrusted
   code executed with the host account's privileges; ETEC bounds what it can *claim*, not
   what it can *reach*.
-- Does not authorise POC-003 to begin. This ADR is `PROPOSED`; POC-003 status remains `NO VERIFICADO` (acceptance criteria pre-registered; execution has not started) awaiting explicit owner authorisation.
-- Does not demonstrate structural or runtime validity of compiled Papyrus binaries. `PEX_STRUCTURAL_VALIDITY` and `PEX_RUNTIME_VALIDITY` remain `NO VERIFICADO`; this contract proves deterministic execution and non-empty artifact creation only.
+- Does not authorise POC-003 to begin retroactively. POC-003 was executed and re-executed after harness hardening; its repository status remains `NO VERIFICADO` because mandatory criteria 12 (`UNEXPECTED_OUTPUT_PRESENT`) and 14 (`DETERMINISM_MISMATCH`) failed.
+- Does not demonstrate structural or runtime validity of compiled Papyrus binaries. `PEX_STRUCTURAL_VALIDITY`, `PEX_RUNTIME_VALIDITY`, and `DETERMINISTIC_OUTPUT` remain `NO VERIFICADO`. ETEC defines and enforces gates capable of detecting non-deterministic output and missing/empty artifacts; it does not guarantee that an external tool produces deterministic artifacts.
 
 ## Acceptance criteria for this ADR
 
@@ -275,6 +275,23 @@ ADR-004 may move PROPOSED → ACCEPTED when:
 6. E9 is accepted: no ETEC profile may report a cleanup guarantee it has not
    demonstrated or enforced.
 7. ADR-003 acceptance criterion 3 is updated to reference this ADR as the ETEC boundary.
+
+## Acceptance record — 2026-09-11
+
+- **Owner decision:** `ACCEPTED`
+- **Evidence:** POC-003 results ([docs/research/2026-09-06-poc-003-results.md](../research/2026-09-06-poc-003-results.md)), PR #24, `main` commit `df53d0289e914a3f806178c4c086725cec7b6da5`.
+- **ADR acceptance criteria:** 7 / 7 satisfied.
+- **Important distinction:** Acceptance of ADR-004 evaluates the *contract* (closed profile, fail-closed evidence model, kernel-enforced confinement), not whether a particular proprietary compiler passes under it. POC-003 remains **`NO VERIFICADO`** (13/15 PASS; criteria 12 and 14 failed). The negative findings in POC-003 confirm that the contract's gates function as designed by detecting and rejecting non-deterministic output and undeclared intermediate files.
+
+| # | Acceptance criterion | Decision | Evidence |
+|---|---|---|---|
+| 1 | WIPC/ETEC distinction unambiguous | **SATISFIED** | Closed `PROFILE_ID = "PAPYRUS_COMPILE_DRYRUN_V1"`, validated trusted-side via `validate_profile_id()`; contract class is explicitly declared, not inferred; no profile uses both. |
+| 2 | Error taxonomy partition accepted (6 inherited, 9 excluded with justification, 9 new) | **SATISFIED** | Partition implemented in `research/poc_003/errors.py`. The 9 transport/receipt-bound codes cannot fire under ETEC and are excluded from the profile outcome set. |
+| 3 | Evidence model sufficient to detect vacuous success | **SATISFIED** | Empirically verified in POC-003: `long` run exited 0 with no artifact and was caught as `EXPECTED_OUTPUT_MISSING`; `timeout` run left an undeclared `.pas` caught as `UNEXPECTED_OUTPUT_PRESENT`; positive runs A/B differed and were caught as `DETERMINISM_MISMATCH`. Pre-existing output check (`PRE_EXISTING_OUTPUT_PRESENT`) and independent hash recomputation verified. |
+| 4 | `PAPYRUS_COMPILE_DRYRUN_V1` profile table complete | **SATISFIED** | Complete closed specification: pinned executable hash, allowlisted flags, closed safe-name tokens, derived cwd, deny-by-default environment, `shell=False`, 64 KiB stream caps. |
+| 5 | Executable hash pinning as a precondition | **SATISFIED** | Pre-spawn verification against trusted configuration enforced in `runner.py`; mismatch fails closed with `EXECUTABLE_HASH_MISMATCH`. |
+| 6 | E9 cleanup rule accepted | **SATISFIED** | `PapyrusAssembler.exe` descendant observed; confinement enforced via Windows Job Object (`KILL_ON_JOB_CLOSE`) with `CREATE_SUSPENDED` before assignment (E9(b)). Zero surviving descendants. Repository maintains `WINDOWS_TREE_CLEANUP = NO VERIFICADO` to distinguish kernel enforcement from enumeration proof. |
+| 7 | ADR-003 acceptance criterion 3 linkage | **SATISFIED** | ADR-003 AC3 explicitly references ADR-004 as the separate external-tool boundary, leaving ADR-002 unchanged. |
 
 ## Out of scope
 
