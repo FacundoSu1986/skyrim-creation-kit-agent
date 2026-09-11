@@ -5,6 +5,7 @@ nothing, so these tests feed it bundles that are known-bad in one specific way
 and assert the matching row and outcome code.
 """
 
+import copy
 import os
 import sys
 import unittest
@@ -60,14 +61,24 @@ def _run_details(**overrides):
 
 
 def _bundle(determinism_equal=True, **run_overrides):
+    hash_a = "11" * 32
+    hash_b = "11" * 32 if determinism_equal else "22" * 32
     positive = {
         "success": True,
         "outcome_code": None,
         "details": _run_details(**run_overrides),
     }
+    pos_a = copy.deepcopy(positive)
+    pos_a["details"]["output_sha256"] = hash_a
+    pos_a["details"]["output_sha256_recomputed"] = hash_a
+    pos_b = copy.deepcopy(positive)
+    pos_b["details"]["output_sha256"] = hash_b
+    pos_b["details"]["output_sha256_recomputed"] = hash_b
     if run_overrides.get("_fail_positive"):
-        positive = {"success": False, "outcome_code": "EXPECTED_OUTPUT_MISSING",
-                    "details": _run_details()}
+        pos_a = {"success": False, "outcome_code": "EXPECTED_OUTPUT_MISSING",
+                 "details": _run_details()}
+        pos_b = {"success": False, "outcome_code": "EXPECTED_OUTPUT_MISSING",
+                 "details": _run_details()}
     return {
         "meta": {
             "fixtures": {
@@ -76,8 +87,8 @@ def _bundle(determinism_equal=True, **run_overrides):
             }
         },
         "runs": {
-            "A": dict(positive),
-            "B": dict(positive),
+            "A": pos_a,
+            "B": pos_b,
             "negative": {
                 "success": False,
                 "outcome_code": "PROCESS_FAILED",
@@ -90,8 +101,8 @@ def _bundle(determinism_equal=True, **run_overrides):
             },
         },
         "determinism": {
-            "run_a_sha256": "11" * 32,
-            "run_b_sha256": "11" * 32 if determinism_equal else "22" * 32,
+            "run_a_sha256": hash_a,
+            "run_b_sha256": hash_b,
             "equal": determinism_equal,
         },
     }
@@ -295,6 +306,82 @@ class EvaluatorTests(unittest.TestCase):
         rows = criteria.evaluate(_bundle())
         table = criteria.render_markdown(rows)
         self.assertEqual(17, len(table.strip().splitlines()))
+
+    def test_fixture_runs_have_independent_details(self):
+        bundle = _bundle()
+        self.assertIsNot(bundle["runs"]["A"]["details"], bundle["runs"]["B"]["details"])
+        bundle["runs"]["A"]["details"]["output_sha256"] = "99" * 32
+        self.assertNotEqual(
+            bundle["runs"]["A"]["details"]["output_sha256"],
+            bundle["runs"]["B"]["details"]["output_sha256"],
+        )
+
+    def test_criterion_1_valid_canonical_imports_passes(self):
+        bundle = _bundle()
+        self.assertEqual("PASS", self._verdict(1, bundle).verdict)
+
+    def test_criterion_1_forward_slash_canonical_imports_passes(self):
+        bundle = _bundle()
+        for r in bundle["runs"].values():
+            r["details"]["argv_sanitized"][3] = "-i=<WORKSPACE_ROOT>/imports;<WORKSPACE_ROOT>/input"
+        self.assertEqual("PASS", self._verdict(1, bundle).verdict)
+
+    def test_criterion_1_outside_second_path_fails(self):
+        bundle = _bundle()
+        bundle["runs"]["A"]["details"]["argv_sanitized"][3] = "-i=<WORKSPACE_ROOT>\\imports;C:\\outside"
+        row = self._verdict(1, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("POLICY_VIOLATION", row.outcome_code)
+
+    def test_criterion_1_missing_input_path_fails(self):
+        bundle = _bundle()
+        bundle["runs"]["A"]["details"]["argv_sanitized"][3] = "-i=<WORKSPACE_ROOT>\\imports"
+        row = self._verdict(1, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("POLICY_VIOLATION", row.outcome_code)
+
+    def test_criterion_1_extra_component_fails(self):
+        bundle = _bundle()
+        bundle["runs"]["A"]["details"]["argv_sanitized"][3] = (
+            "-i=<WORKSPACE_ROOT>\\imports;<WORKSPACE_ROOT>\\input;<WORKSPACE_ROOT>\\extra"
+        )
+        row = self._verdict(1, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("POLICY_VIOLATION", row.outcome_code)
+
+    def test_criterion_14_tampered_differing_hashes_with_equal_true_fails(self):
+        bundle = _bundle(determinism_equal=False)
+        bundle["determinism"]["equal"] = True
+        row = self._verdict(14, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("DETERMINISM_MISMATCH", row.outcome_code)
+
+    def test_criterion_14_tampered_equal_hashes_with_equal_false_fails(self):
+        bundle = _bundle(determinism_equal=True)
+        bundle["determinism"]["equal"] = False
+        row = self._verdict(14, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("DETERMINISM_MISMATCH", row.outcome_code)
+
+    def test_criterion_14_tampered_bundle_hash_mismatch_fails(self):
+        bundle = _bundle(determinism_equal=True)
+        bundle["determinism"]["run_a_sha256"] = "99" * 32
+        row = self._verdict(14, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("DETERMINISM_MISMATCH", row.outcome_code)
+
+    def test_criterion_14_missing_run_hash_fails(self):
+        bundle = _bundle(determinism_equal=True)
+        bundle["runs"]["A"]["details"]["output_sha256"] = None
+        row = self._verdict(14, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("DETERMINISM_MISMATCH", row.outcome_code)
+
+    def test_criterion_14_fully_consistent_equal_hashes_passes(self):
+        bundle = _bundle(determinism_equal=True)
+        row = self._verdict(14, bundle)
+        self.assertEqual("PASS", row.verdict)
+        self.assertIsNone(row.outcome_code)
 
 
 if __name__ == "__main__":

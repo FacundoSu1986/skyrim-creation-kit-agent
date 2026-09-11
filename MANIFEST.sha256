@@ -62,11 +62,11 @@ bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b  ./public/licen
 5c4f047702e7cc0aed0045f024a9e800dbfe881105c3233fc6466aa844bef9d2  ./public/licenses/THIRD_PARTY_NOTICES.md
 fdc6c435731d1b287f1e0c84da4f35dc7ce50d9edfae409d2b15cc0c260d0979  ./public/licenses/.gitattributes
 4e748950e13db771d2246f1eecff3d9a1661a9ad22daddb194a17cd19a0d8590  ./docs/research/2026-09-01-poc-003-pre-registration.md
-bec8da7d1d0210ffa4292646d10153a28aea58a58933c11c2c5d259f796f9855  ./docs/research/2026-09-06-poc-003-results.md
+dae0ce22e5bd1cc3a178089ddf73524c93e7b42a1d6565c60adf4a63eeab74fb  ./docs/research/2026-09-06-poc-003-results.md
 a6b6ea60904275499cc3c1d5a817d92dbf3b3c9cebc163ceb6794ab03074f37b  ./docs/research/experiments.md
 5d0546d72c2c0b4d89450a8a0ad53da87a511a3e40b8d0d0e07aa01a59c5f762  ./research/poc_003/README.md
 7c17efb934c90ce8601450758a5d4ac4a66cdab8f2b8d5a5c607fa37e4082fcf  ./research/poc_003/__init__.py
-26039f60910827c4126bb98ec3cc6bf9977640895ac2d65cd6a554b67bef89a0  ./research/poc_003/criteria.py
+879d0f15928c089d995250249f45e8bd065442a80e6bf04b105762730c48b66a  ./research/poc_003/criteria.py
 4017f033ed9306ded327262850315072903d4bdf628b9c931ecfec6ec07a2677  ./research/poc_003/errors.py
 6358e9ff842a1b75ce314d9cf2f0fc8320a807a7f1479a20b6e05f2e4c3d01e3  ./research/poc_003/evidence/criteria.json
 df4bcbeb28c6c8f67efed6506c71d35598d7abcea17dd7c3550718d7ef586945  ./research/poc_003/evidence/matrix.md
@@ -85,8 +85,8 @@ f9c2f0027023a9a878a5f48976acfdb823bb31fbc0d78ab64266297ff6f5093a  ./research/poc
 ba8e6868035cc6e45aa5030cd446a7ed6fb063c0ee23f316530cc167a4aff1a3  ./research/poc_003/snapshot.py
 ddf3a90be9b936d45fa19a93bc80f1a78da821b9d8d125903fab5b88460c1e25  ./research/poc_003/tests/_fake.py
 7f238f67619155c7edff265c3febebb522da56ae3ec54c37b1ea3490ab288e4a  ./research/poc_003/tests/_harness.py
-3b67c289efdcc1acf038ac1a9cdbddfdecb3eeed44a4e108e6e8bde0599664d4  ./research/poc_003/tests/test_criteria.py
-4f4645cbb73eb115203b89d7afab448219466073d08ea3c4a5bb66284f6f7a3a  ./research/poc_003/tests/test_proctree.py
+749f2349e03f1fca1cccb709afa9da4a8c460afc93344cdd565b7b30bfaebb66  ./research/poc_003/tests/test_criteria.py
+7e69a8d845280904caf16cbc79c439d9383080c11a2a2fbd27340f01bd8726be  ./research/poc_003/tests/test_proctree.py
 e910bb0eb6eaa4fc8aa69590e235dfbf1964c5e0b25a10f0d4d980f31d4fb81f  ./research/poc_003/tests/test_probe.py
 535ecd36f473833bed5ef14eee8a069efb590d6adab5f1179a39905fa4c8ca15  ./research/poc_003/tests/test_profile.py
 a5eae445e66309a42f002a59c4bd55793f90db9c44e904cc8ca5e8281fbb0a23  ./research/poc_003/tests/test_runner.py

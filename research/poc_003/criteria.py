@@ -22,6 +22,9 @@ _ARGV_SOURCE = re.compile(r"^<WORKSPACE_ROOT>[/\\]input[/\\][A-Za-z0-9._-]+\.psc
 #: Windows renders the sanitized separator as "\"; a POSIX run would render
 #: "/". Both are the same resolved path, so the shape check accepts either.
 _ARGV_OUTPUT = re.compile(r"^-o=<WORKSPACE_ROOT>[/\\]candidates$")
+_ARGV_IMPORTS = re.compile(
+    r"^-i=<WORKSPACE_ROOT>[/\\]imports;<WORKSPACE_ROOT>[/\\]input$"
+)
 
 
 @dataclass
@@ -73,8 +76,7 @@ def _check_argv_shape(argv: list[str]) -> bool:
         exe == "<PAPYRUS_COMPILER_EXE>"
         and _ARGV_SOURCE.match(str(source))
         and str(flags) == "-f=<FLAGS_FILE>"
-        and str(imports).startswith("-i=<WORKSPACE_ROOT>")
-        and ";" in str(imports)
+        and _ARGV_IMPORTS.match(str(imports))
         and bool(_ARGV_OUTPUT.match(str(output)))
     )
 
@@ -460,7 +462,22 @@ def evaluate(bundle: dict) -> list[Row]:
     ))
 
     # 14 ------------------------------------------------------------------
-    equal = both_positive and bool(det.get("equal"))
+    run_a_hash = _det(runs.get("A", {})).get("output_sha256")
+    run_b_hash = _det(runs.get("B", {})).get("output_sha256")
+    hashes_present = bool(run_a_hash and run_b_hash)
+    recomputed_equal = bool(hashes_present and run_a_hash == run_b_hash)
+    bundle_a_hash = det.get("run_a_sha256")
+    bundle_b_hash = det.get("run_b_sha256")
+    bundle_equal = det.get("equal")
+
+    consistent = bool(
+        both_positive
+        and hashes_present
+        and bundle_a_hash == run_a_hash
+        and bundle_b_hash == run_b_hash
+        and bundle_equal == recomputed_equal
+    )
+    equal = bool(consistent and recomputed_equal)
     verdict_14 = PASS if equal else FAIL
     rows.append(Row(
         14,

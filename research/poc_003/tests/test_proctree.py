@@ -10,6 +10,7 @@ import ctypes
 import os
 import sys
 import unittest
+import unittest.mock
 from ctypes import wintypes
 from pathlib import Path
 
