@@ -29,9 +29,27 @@ Implementation: [`../../research/poc_002/`](../../research/poc_002/).
 
 **Status:** `NO VERIFICADO`
 
-Verify that the official compiler is invoked with explicit arguments, no shell, bounded timeout, captured stdout/stderr and output PEX verification. The compiler binary was not present in the research environment.
+Verify that the official compiler is invoked with explicit arguments, no shell, bounded timeout, captured stdout/stderr and output PEX verification.
 
-**Not started.** Acceptance criteria are pre-registered (2026-09-01) in the [POC-003 pre-registration](2026-09-01-poc-003-pre-registration.md), under the `PAPYRUS_COMPILE_DRYRUN_V1` profile defined by [ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (PROPOSED). POC-003 does not use the ADR-002 IPC protocol: the compiler cannot speak it. See the identifier rule below.
+**(Pre-execution context)** The compiler is a local/proprietary dependency: it was not available to CI at the time the acceptance criteria were designed (2026-09-01), which is why the real experiment is locally executable but not CI-runnable. That pre-execution constraint is historical context; it no longer describes the current execution state.
+
+**Executed 2026-09-06, re-executed 2026-09-11** after the harness was corrected
+so that criteria 11 and 12 fail closed on every execution path (previously they
+could return a vacuous `PASS`). Result recorded in
+[2026-09-06-poc-003-results.md](2026-09-06-poc-003-results.md): 13 of 15
+pre-registered criteria passed; mandatory criterion 12 (no unexpected outputs)
+failed with `UNEXPECTED_OUTPUT_PRESENT` — the interrupted run leaves an
+undeclared `candidates/<token>.pas` behind — and mandatory criterion 14
+(determinism) failed with `DETERMINISM_MISMATCH`. POC-003 is not `PASS`;
+repository status remains `NO VERIFICADO` and `DETERMINISTIC_OUTPUT` is
+`NO VERIFICADO`. The hermetic test suite (94 tests) is CI-gated by
+`.github/workflows/poc003.yml` and never requires the compiler. Implementation:
+[`../../research/poc_003/`](../../research/poc_003/). Acceptance criteria are
+pre-registered (2026-09-01) in the [POC-003 pre-registration](2026-09-01-poc-003-pre-registration.md),
+under the `PAPYRUS_COMPILE_DRYRUN_V1` profile defined by
+[ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (PROPOSED).
+POC-003 does not use the ADR-002 IPC protocol: the compiler cannot speak it.
+See the identifier rule below.
 
 ## POC-004 — xEdit allowlisted `-script -autoexit`
 
