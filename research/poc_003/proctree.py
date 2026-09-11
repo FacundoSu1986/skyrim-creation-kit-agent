@@ -48,6 +48,12 @@ _kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintype
 _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
 _kernel32.OpenThread.restype = wintypes.HANDLE
 _kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+# ResumeThread returns a Win32 DWORD. Without an explicit restype ctypes
+# converts the result to a signed c_int, so the failure sentinel (DWORD)-1
+# arrives as -1 and ``-1 != 0xFFFFFFFF`` is true: a failed resume would be
+# reported as success and a still-suspended process would hang until the
+# deadline instead of failing closed.
+_kernel32.ResumeThread.restype = wintypes.DWORD
 _kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
 _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 

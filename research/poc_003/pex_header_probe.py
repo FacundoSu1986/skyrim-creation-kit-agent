@@ -53,7 +53,16 @@ def _reset_workspace(root: str) -> workspace.Workspace:
     """
     if os.path.isdir(root):
         workspace.make_writable(root)
-        shutil.rmtree(root, ignore_errors=True)
+        # No ``ignore_errors``: a partially deleted tree is a forensic hazard,
+        # not a nuisance. If the expected artifact is gone but a stale import
+        # survives, the runner would accept that residual as the baseline state
+        # and the next compile would "prove" something about a workspace that
+        # was never actually clean.
+        shutil.rmtree(root)
+        if os.path.exists(root):
+            raise RuntimeError(
+                f"probe workspace could not be fully removed before re-creation: {root}"
+            )
     return workspace.create_workspace(root)
 
 

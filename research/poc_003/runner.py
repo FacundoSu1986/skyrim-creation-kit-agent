@@ -590,7 +590,11 @@ def _settle_input_verdict(ev: RunEvidence) -> None:
     if ev.outcome_code is None:
         ev.outcome_code = errors.INPUT_HASH_MISMATCH
         ev.success = False
-    ev.failures.append(entry)
+    # The primary verdict path can already have adjudicated this mutation (for
+    # example via the import-root comparison). Appending unconditionally would
+    # publish the same mutation twice, which reads as two independent findings.
+    if not any(f["code"] == errors.INPUT_HASH_MISMATCH for f in ev.failures):
+        ev.failures.append(entry)
 
 
 def _added_paths(

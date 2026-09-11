@@ -232,6 +232,39 @@ class EvaluatorTests(unittest.TestCase):
         summary = criteria.summarize(rows)
         self.assertFalse(summary["all_pass"])
 
+    def test_empty_runs_is_unmeasured_not_changed(self):
+        """With no runs, criterion 11 must not claim an input changed."""
+        bundle = _bundle()
+        bundle["runs"] = {}
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+        self.assertNotIn("changed", row.reason)
+
+    def test_unexpected_outputs_must_be_a_list(self):
+        """Presence of the field is not enough; a wrong shape must fail."""
+        bundle = _bundle()
+        bundle["runs"]["A"]["details"]["unexpected_outputs"] = "none"
+        self.assertEqual("FAIL", self._verdict(12, bundle).verdict)
+
+    def test_one_positive_run_cannot_satisfy_the_two_run_criteria(self):
+        """Criteria 9, 10 and 14 compare two independent successes."""
+        bundle = _bundle()
+        del bundle["runs"]["B"]
+        for number in (9, 10, 14):
+            self.assertEqual(
+                "FAIL",
+                self._verdict(number, bundle).verdict,
+                f"criterion {number} must not pass on a single positive run",
+            )
+
+    def test_a_failed_positive_run_is_not_a_positive_run(self):
+        bundle = _bundle()
+        bundle["runs"]["B"]["success"] = False
+        bundle["runs"]["B"]["outcome_code"] = "PROCESS_FAILED"
+        for number in (9, 10, 14):
+            self.assertEqual("FAIL", self._verdict(number, bundle).verdict)
+
     def test_unexpected_output_fails_criterion_12(self):
         bundle = _bundle()
         bundle["runs"]["A"]["details"]["unexpected_outputs"] = ["stray.txt"]

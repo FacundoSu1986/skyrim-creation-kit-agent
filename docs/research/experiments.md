@@ -42,7 +42,7 @@ failed with `UNEXPECTED_OUTPUT_PRESENT` — the interrupted run leaves an
 undeclared `candidates/<token>.pas` behind — and mandatory criterion 14
 (determinism) failed with `DETERMINISM_MISMATCH`. POC-003 is not `PASS`;
 repository status remains `NO VERIFICADO` and `DETERMINISTIC_OUTPUT` is
-`NO VERIFICADO`. The hermetic test suite (86 tests) is CI-gated by
+`NO VERIFICADO`. The hermetic test suite (94 tests) is CI-gated by
 `.github/workflows/poc003.yml` and never requires the compiler. Implementation:
 [`../../research/poc_003/`](../../research/poc_003/). Acceptance criteria are
 pre-registered (2026-09-01) in the [POC-003 pre-registration](2026-09-01-poc-003-pre-registration.md),

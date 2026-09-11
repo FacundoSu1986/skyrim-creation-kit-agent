@@ -85,6 +85,13 @@ def evaluate(bundle: dict) -> list[Row]:
     codes = _codes(bundle)
     det = bundle.get("determinism", {})
     positive = [name for name in ("A", "B") if name in runs]
+    # ``positive`` only asks whether a run *exists* under that name, so a bundle
+    # with a single positive run (or with A present but failed) would let
+    # criteria 9, 10 and 14 pass on one artifact. Determinism and the artifact
+    # gates are comparisons between two independent successes, so require both.
+    both_positive = all(
+        isinstance(runs.get(n), dict) and runs[n].get("success") for n in ("A", "B")
+    )
     rows: list[Row] = []
 
     # 1 -------------------------------------------------------------------
@@ -261,7 +268,7 @@ def evaluate(bundle: dict) -> list[Row]:
 
     # 9 -------------------------------------------------------------------
     fresh = "PRE_EXISTING_OUTPUT_PRESENT" not in codes
-    produced = has_runs and positive and all(runs[n].get("success") for n in positive)
+    produced = both_positive
     neg = runs.get("negative", {})
     neg_clean = (not neg.get("success")) and neg.get("outcome_code") == "PROCESS_FAILED"
     # Exit code 0 is necessary but NOT sufficient: the artifact gate rejects a
@@ -295,7 +302,7 @@ def evaluate(bundle: dict) -> list[Row]:
     ))
 
     # 10 ------------------------------------------------------------------
-    hash_ok = has_runs and positive and all(
+    hash_ok = both_positive and all(
         _det(runs[n]).get("output_sha256")
         and _det(runs[n]).get("output_sha256") == _det(runs[n]).get("output_sha256_recomputed")
         for n in positive
@@ -348,7 +355,11 @@ def evaluate(bundle: dict) -> list[Row]:
     input_ok = has_runs and all(
         all(state == "OK" for state in input_status[n].values()) for n in runs
     )
-    inputs_unmeasured = has_runs and any(
+    # With no runs at all nothing was measured, which is the same failure mode
+    # as a missing post-state: unmeasured, not changed. Without this the row
+    # would report INPUT_HASH_MISMATCH and assert "an input changed" when no
+    # input was ever looked at.
+    inputs_unmeasured = (not has_runs) or any(
         "MISSING" in input_status[n].values() for n in runs
     )
     verdict_11 = PASS if (input_ok and "INPUT_HASH_MISMATCH" not in codes) else FAIL
@@ -385,8 +396,11 @@ def evaluate(bundle: dict) -> list[Row]:
     inspected = has_runs and all(
         _det(r).get("workspace_post_inspected") is True for r in runs.values()
     )
+    # Presence is not shape. A string or object in this field would satisfy
+    # ``"unexpected_outputs" in det`` while carrying no usable list, and the
+    # flagging loop below only reads lists, so it would silently find nothing.
     unexpected_present = has_runs and all(
-        "unexpected_outputs" in _det(r) for r in runs.values()
+        isinstance(_det(r).get("unexpected_outputs"), list) for r in runs.values()
     )
     all_unexpected: dict[str, list[str]] = {}
     for n, r in runs.items():
@@ -446,7 +460,7 @@ def evaluate(bundle: dict) -> list[Row]:
     ))
 
     # 14 ------------------------------------------------------------------
-    equal = has_runs and bool(det.get("equal"))
+    equal = both_positive and bool(det.get("equal"))
     verdict_14 = PASS if equal else FAIL
     rows.append(Row(
         14,
