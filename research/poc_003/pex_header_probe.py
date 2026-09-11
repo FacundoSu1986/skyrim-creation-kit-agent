@@ -13,9 +13,19 @@ This probe separates them. It compiles the same fixture repeatedly and:
 2. in a **longer** path, so path-length sensitivity becomes visible;
 3. reports, for every pair, the count and offsets of differing bytes.
 
+Every compile goes through the **same ETEC runner** as the experiment
+(:func:`runner.run_once`). There is deliberately no second launch boundary
+here: executable-hash gate, flags-hash gate, Job Object confinement,
+process-tree measurement, bounded streaming, input verification and workspace
+policy all apply exactly as they do to a real run. After a run has been
+accepted by the runner, the produced ``.pex`` is read locally for structured
+forensic facts only — SHA-256, size, diff offsets and parsed header integers.
+Raw PEX bytes are never printed or committed (they embed the host account and
+machine name in clear text), and no determinism gate is evaluated by this
+probe.
+
 It needs the local `PapyrusCompiler.exe` and is therefore **not** part of the
-hermetic unit suite and **not** run by CI. It is launched as a direct child
-with `shell=False`, exactly like the harness.
+hermetic unit suite and **not** run by CI.
 
 Usage::
 
@@ -26,59 +36,101 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
-import subprocess
 import tempfile
 
-from . import profile
-
-#: Bytes of a produced .pex to retain for the diff. Enough to cover the whole
-#: header of a minimal script, and small enough to stay out of any report.
-PEX_PREFIX = 128
+from . import profile, runner, workspace
 
 
-def _env(temp_dir: str) -> dict[str, str]:
-    env = profile.build_environment(temp_dir)
-    return env
+def _reset_workspace(root: str) -> workspace.Workspace:
+    """Recreate ``root`` as a clean POC-003 workspace.
+
+    Reused across probe compiles (including the same-path pair) after making
+    the previous tree writable, so no stale artifact can satisfy the
+    PRE_EXISTING_OUTPUT_PRESENT gate.
+    """
+    if os.path.isdir(root):
+        workspace.make_writable(root)
+        shutil.rmtree(root, ignore_errors=True)
+    return workspace.create_workspace(root)
 
 
-def _compile(config: profile.LocalConfig, ws: str, token: str,
-             source: str, imports: tuple[str, ...]) -> bytes:
-    if os.path.isdir(ws):
-        shutil.rmtree(ws, ignore_errors=True)
-    inp = os.path.join(ws, "input")
-    imp = os.path.join(ws, "imports")
-    cand = os.path.join(ws, "candidates")
-    for directory in (inp, imp, cand):
-        os.makedirs(directory, exist_ok=True)
-    shutil.copyfile(source, os.path.join(inp, f"{token}.psc"))
-    for extra in imports:
-        shutil.copyfile(extra, os.path.join(imp, os.path.basename(extra)))
-    argv = [
-        config.executable,
-        os.path.join(inp, f"{token}.psc"),
-        f"-f={config.flags}",
-        f"-i={imp};{inp}",
-        f"-o={cand}",
-    ]
-    proc = subprocess.run(
-        argv,
-        cwd=ws,
-        env=_env(os.path.join(ws, "temp")),
-        shell=False,
-        capture_output=True,
-        timeout=profile.DEFAULT_DEADLINE_S,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"compiler exited {proc.returncode}")
-    produced = os.path.join(cand, f"{token}.pex")
-    with open(produced, "rb") as handle:
-        return handle.read()
+def _stage_fixture(ws: workspace.Workspace, fixture_dir: str, token: str) -> None:
+    """Populate ``input/`` (the source) and ``imports/`` (the extras)."""
+    workspace.copy_fixture_tree(fixture_dir, ws.originals)
+    for name in sorted(os.listdir(fixture_dir)):
+        src = os.path.join(fixture_dir, name)
+        if name == f"{token}.psc":
+            shutil.copyfile(src, os.path.join(ws.input, name))
+        else:
+            shutil.copyfile(src, os.path.join(ws.imports, name))
+    for area in workspace.READ_ONLY_DIRS:
+        workspace.mark_read_only(ws.area(area))
+
+
+def _compile_once(
+    config: profile.LocalConfig, ws_root: str, token: str, fixture_dir: str
+) -> tuple[bytes, runner.RunEvidence]:
+    """One *runner-governed* compile; returns the produced artifact bytes.
+
+    The pinned executable and flags digests are verified by the runner pre-
+    spawn on every call; a mismatch aborts before anything executes.
+    """
+    ws = _reset_workspace(ws_root)
+    _stage_fixture(ws, fixture_dir, token)
+    request = runner.RunRequest(operation=profile.OP_COMPILE_FIXTURE, source_token=token)
+    evidence = runner.run_once(config, ws, request)
+    if not evidence.success:
+        raise RuntimeError(
+            f"runner rejected the compile: {evidence.outcome_code}: {evidence.failures}"
+        )
+    pex = os.path.join(ws.candidates, request.expected_output())
+    with open(pex, "rb") as handle:
+        return handle.read(), evidence
 
 
 def _diff_offsets(a: bytes, b: bytes) -> list[int]:
-    return [i for i in range(min(len(a), len(b))) if a[i] != b[i]]
+    """Every differing byte offset, including the tail of the longer file.
+
+    A byte present in one output and absent in the other is a difference at
+    that offset, not an ignorable truncation.
+    """
+    shared = [i for i in range(min(len(a), len(b))) if a[i] != b[i]]
+    return shared + list(range(min(len(a), len(b)), max(len(a), len(b))))
+
+
+def _header_observations(data: bytes) -> dict[str, object]:
+    """Structured, non-raw facts about the produced artifact's header.
+
+    The compiler embeds the host account name and machine name in clear text
+    inside the artifact, so raw bytes are never returned, printed or committed.
+    Only parsed integers, a magic constant and ASCII segment counts are
+    reported. ``uint32_be_offset_0x0c`` is the field previously measured as a
+    big-endian compile-time value; reporting it as a plain integer keeps the
+    observation honest without normalizing it (criterion 14 is not evaluated
+    here).
+    """
+    observations: dict[str, object] = {"size": len(data)}
+    if len(data) >= 16:
+        observations["magic_hex"] = data[:4].hex()
+        observations["uint16_be_offset_0x04"] = int.from_bytes(data[0x04:0x06], "big")
+        observations["uint16_be_offset_0x08"] = int.from_bytes(data[0x08:0x0A], "big")
+        observations["uint32_be_offset_0x0c"] = int.from_bytes(data[0x0C:0x10], "big")
+    printable = bytes(range(0x20, 0x7F))
+    segment_count = 0
+    in_segment = False
+    for byte in data[:512]:
+        if byte in printable:
+            in_segment = True
+        elif in_segment:
+            segment_count += 1
+            in_segment = False
+    if in_segment:
+        segment_count += 1
+    observations["ascii_segments_in_prefix_512"] = segment_count
+    return observations
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -90,21 +142,17 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("no local config: pass --config or set POC003_CONFIG")
 
     config = profile.LocalConfig.from_file(args.config)
-    fixture_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "fixture_success")
-    source = os.path.join(fixture_root, f"{args.token}.psc")
-    extras = tuple(
-        os.path.join(fixture_root, name)
-        for name in sorted(os.listdir(fixture_root))
-        if name != f"{args.token}.psc" and name.endswith(".psc")
+    fixture_root = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "fixtures", "fixture_success"
     )
 
     base = tempfile.mkdtemp(prefix="poc003-probe-")
     try:
         same = os.path.join(base, "same")
-        first = _compile(config, same, args.token, source, extras)
-        second = _compile(config, same, args.token, source, extras)
+        first, _first_ev = _compile_once(config, same, args.token, fixture_root)
+        second, _second_ev = _compile_once(config, same, args.token, fixture_root)
         long_path = os.path.join(base, "a-considerably-longer-path")
-        third = _compile(config, long_path, args.token, source, extras)
+        third, _third_ev = _compile_once(config, long_path, args.token, fixture_root)
 
         report = {
             "same_path_run_1_sha256": _sha(first),
@@ -115,26 +163,22 @@ def main(argv: list[str] | None = None) -> int:
             "longer_path_sha256": _sha(third),
             "longer_path_equal_to_run_1": first == third,
             "longer_path_diff_byte_count": len(_diff_offsets(first, third)),
+            "longer_path_diff_offsets": _diff_offsets(first, third)[:16],
             "sizes": [len(first), len(second), len(third)],
+            "run_1_header": _header_observations(first),
+            "run_2_header": _header_observations(second),
+            "run_3_header": _header_observations(third),
         }
-        # The retained prefix is raw tool output: it can embed the host's
-        # username and machine name, so it is never printed in full.
-        report["prefix_redacted"] = _redact(first[:PEX_PREFIX])
         print(_render(report))
     finally:
-        shutil.rmtree(base, ignore_errors=True)
+        if os.path.isdir(base):
+            workspace.make_writable(base)
+            shutil.rmtree(base, ignore_errors=True)
     return 0
 
 
 def _sha(data: bytes) -> str:
-    import hashlib
-
     return hashlib.sha256(data).hexdigest()
-
-
-def _redact(prefix: bytes) -> str:
-    """Render a hex prefix with embedded host identifiers masked."""
-    return " ".join(f"{byte:02x}" for byte in prefix[:24]) + " ..."
 
 
 def _render(report: dict[str, object]) -> str:

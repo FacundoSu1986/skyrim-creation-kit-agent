@@ -1,6 +1,6 @@
 # POC-003 pre-registration — PapyrusCompiler dry-invoke
 
-- **Status:** `NO VERIFICADO` — criteria pre-registered 2026-09-01. **The experiment has not been executed.**
+- **Status:** `NO VERIFICADO` — criteria pre-registered 2026-09-01. **The experiment has been executed and did not pass**; see [Result](#result-recorded-after-execution) for the measured status and links.
 - **Profile:** `PAPYRUS_COMPILE_DRYRUN_V1`, defined by [ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (PROPOSED).
 - **Authorised by:** pending owner decision. This document does not start the work.
 
@@ -161,11 +161,16 @@ Nothing above was altered: no mandatory criterion, pass rule, failure rule,
 determinism requirement, process-tree requirement or input-snapshot semantic
 was changed after the result was known.
 
-- **Executed:** 2026-09-06 under profile `PAPYRUS_COMPILE_DRYRUN_V1`.
-- **Outcome:** 14 of 15 criteria passed; mandatory criterion 14 (determinism)
-  failed with `DETERMINISM_MISMATCH`. POC-003 is therefore not `PASS`.
+- **Executed:** 2026-09-06 under profile `PAPYRUS_COMPILE_DRYRUN_V1`;
+  **re-executed 2026-09-11** after the harness was corrected so that criteria
+  11 and 12 fail closed on every execution path. The figures below are the
+  re-run. Nothing above was altered to obtain them.
+- **Outcome:** 13 of 15 criteria passed; mandatory criteria 12 (no unexpected
+  outputs) and 14 (determinism) failed, with `UNEXPECTED_OUTPUT_PRESENT` and
+  `DETERMINISM_MISMATCH` respectively. POC-003 is therefore not `PASS`.
 - **Repository status:** `NO VERIFICADO`.
 - **`DETERMINISTIC_OUTPUT`:** `NO VERIFICADO` (six compiles of byte-identical
-  input in one path produced six distinct digests).
+  input in one path produced six distinct digests; three further compiles of
+  the same input produced three distinct digests on the re-run).
 - **Results:** [2026-09-06-poc-003-results.md](2026-09-06-poc-003-results.md)
 - **Evidence:** [`research/poc_003/evidence/`](../../research/poc_003/evidence/)

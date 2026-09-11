@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import threading
 import time
@@ -117,6 +116,7 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
     stderr_sink: dict[str, object] = {}
     threads: list[threading.Thread] = []
     job_error: str | None = None
+    baseline_entries: tuple[snapshot.FileEntry, ...] | None = None
 
     try:
         # --- pre-spawn gate 1: closed profile -------------------------------
@@ -140,8 +140,11 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
             raise errors.EtecFailure(errors.EXECUTABLE_HASH_MISMATCH, "pinned hash mismatch before spawn")
 
         # --- pre-spawn gate 3: flags integrity ------------------------------
+        # The evidence record carries an explicit pre/post pair. A single
+        # ambiguous "flags_sha256" field is deliberately not used: criterion 11
+        # requires presence AND concordance of both values per run.
         flags_digest = snapshot.sha256_file(config.flags)
-        d["flags_sha256"] = flags_digest
+        d["flags_sha256_pre"] = flags_digest
         if flags_digest != config.flags_sha256:
             raise errors.EtecFailure(errors.INPUT_HASH_MISMATCH, "allowlisted flags file hash mismatch")
 
@@ -167,6 +170,7 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
         d["import_snapshot_size_pre"] = len(import_pre)
 
         baseline = snapshot.snapshot_tree(ws.root)
+        baseline_entries = baseline
         d["workspace_baseline_signature"] = snapshot.signature(baseline)
 
         argv = profile.build_argv(config, source_path, ws.input, ws.imports, ws.candidates)
@@ -183,6 +187,12 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
             raise errors.EtecFailure(errors.INTERNAL_ERROR, "process-tree observation self-check failed")
 
         # --- spawn (direct child, no shell) ---------------------------------
+        # On Windows the process is created SUSPENDED so it cannot execute a
+        # single instruction (or spawn a descendant) between CreateProcess and
+        # AssignProcessToJobObject. If the Job Object cannot be established the
+        # process still runs — the fallback path is explicitly recorded — and
+        # the primary thread is resumed either way.
+        creation_flags = getattr(subprocess, "CREATE_SUSPENDED", 0)
         started = time.monotonic()
         proc = subprocess.Popen(
             argv,
@@ -193,9 +203,11 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             close_fds=True,
+            creationflags=creation_flags,
         )
         d["pid"] = proc.pid
         d["direct_child"] = True
+        d["spawn_suspended"] = bool(os.name == "nt" and creation_flags)
 
         try:
             job = jobobject.JobObject()
@@ -207,6 +219,17 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
                 job.close()
                 job = None
             d["job_object"] = f"unavailable: {job_error}"
+
+        if d["spawn_suspended"]:
+            if not proctree.resume(proc.pid):
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                raise errors.EtecFailure(
+                    errors.INTERNAL_ERROR,
+                    "primary thread resume failed after suspended spawn",
+                )
 
         threads = [
             threading.Thread(target=_reader, args=(proc.stdout, request.stream_limit_bytes, stdout_sink), daemon=True),
@@ -268,9 +291,18 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
             for pid in sorted(observed_descendants):
                 if proctree.kill(pid):
                     mechanisms.append(f"terminate_descendant:{pid}")
+        # ``direct_child_terminate`` must name a termination the kernel was
+        # actually asked to perform. On Windows ``Popen.kill()`` returns
+        # immediately for an already-exited process without issuing a
+        # TerminateProcess, so recording it unconditionally would claim a
+        # cleanup action that never happened. The honest record for that case
+        # is that the child had already exited on its own.
         try:
-            proc.kill()
-            mechanisms.append("direct_child_terminate")
+            if proc.poll() is None:
+                proc.kill()
+                mechanisms.append("direct_child_terminate")
+            else:
+                mechanisms.append("direct_child_exited")
         except OSError:
             pass
 
@@ -371,22 +403,19 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
         d["import_snapshot_changes"] = changes
         if any(changes.values()):
             raise errors.EtecFailure(errors.INPUT_HASH_MISMATCH, f"import root changed: {changes}")
-        if snapshot.sha256_file(config.flags) != flags_digest:
+        try:
+            d["flags_sha256_post"] = snapshot.sha256_file(config.flags)
+        except OSError as exc:
+            raise errors.EtecFailure(errors.INTERNAL_ERROR, f"flags post-state uninspectable: {exc}") from exc
+        if d["flags_sha256_post"] != flags_digest:
             raise errors.EtecFailure(errors.INPUT_HASH_MISMATCH, "flags file mutated during run")
 
-        # --- unexpected outputs ---------------------------------------------
-        after = snapshot.snapshot_tree(ws.root)
-        added = _added_paths(baseline, after)
-        allowed = {d["expected_output_rel"]}
-        unexpected = sorted(
-            p
-            for p in added
-            if p not in allowed and not p.startswith("logs/") and not p.startswith("temp/")
-        )
-        d["workspace_added_paths"] = sorted(added)
-        d["unexpected_outputs"] = unexpected
-        if unexpected:
-            raise errors.EtecFailure(errors.UNEXPECTED_OUTPUT_PRESENT, f"{unexpected}")
+        # --- unexpected outputs (criterion 12) ------------------------------
+        workspace_failures = _record_post_workspace_state(ws, baseline_entries, d)
+        if workspace_failures:
+            raise errors.EtecFailure(
+                workspace_failures[0]["code"], workspace_failures[0]["detail"]
+            )
 
         ev.success = True
 
@@ -397,10 +426,26 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
         ev.outcome_code = errors.INTERNAL_ERROR
         ev.failures.append({"code": errors.INTERNAL_ERROR, "detail": str(exc)})
     finally:
-        # Input immutability is verified on every path, not only on the happy
-        # one: a tool that fails can still have mutated a declared read-only
-        # input, and criterion 11 has to be measurable for those runs too.
-        _record_post_input_state(config, ws, d)
+        # Input and workspace immutability are verified on every path that
+        # reached the pre-spawn baseline, not only on the happy one: a tool
+        # that fails can still have mutated a declared read-only input
+        # (criterion 11) or produced an undeclared output (criterion 12), and
+        # both must be measurable for those runs too. A post-state failure is
+        # appended to the evidence without overwriting the primary outcome, so
+        # PROCESS_TIMEOUT + INTERNAL_ERROR (or + INPUT_HASH_MISMATCH) can
+        # coexist in ``failures``.
+        if "source_sha256_pre" in d:
+            for failure in _record_post_input_state(config, ws, d):
+                ev.failures.append(failure)
+                if ev.outcome_code is None:
+                    ev.outcome_code = failure["code"]
+                    ev.success = False
+        if "workspace_baseline_signature" in d and "workspace_post_inspected" not in d:
+            for failure in _record_post_workspace_state(ws, baseline_entries, d):
+                ev.failures.append(failure)
+                if ev.outcome_code is None:
+                    ev.outcome_code = failure["code"]
+                    ev.success = False
         # Internal bookkeeping only: an absolute path must not reach the
         # committed evidence record.
         d.pop("source_path", None)
@@ -413,31 +458,129 @@ def run_once(config: profile.LocalConfig, ws: workspace.Workspace, request: RunR
 
 def _record_post_input_state(
     config: profile.LocalConfig, ws: workspace.Workspace, d: dict[str, object]
-) -> None:
-    """Record post-run input hashes if the run ended before reaching them."""
-    if "source_sha256_pre" not in d or "source_sha256_post" in d:
-        return
+) -> list[dict[str, str]]:
+    """Record post-run input hashes on every path that reached pre-state.
+
+    Criterion 11 names three declared read-only inputs (source script, flags
+    file, import root); each is re-measured independently here. Returns a list
+    of failure entries (``INTERNAL_ERROR``) for any input that cannot be
+    re-measured, so criterion 11 fails closed instead of reading "unchanged".
+    A *demonstrated* difference is not reported here; ``_settle_input_verdict``
+    maps that to ``INPUT_HASH_MISMATCH``.
+    """
+    failures: list[dict[str, str]] = []
     try:
-        target = str(d["source_path"])
-    except KeyError:
-        return
+        d["source_sha256_post"] = snapshot.sha256_file(str(d.get("source_path")))
+    except (OSError, TypeError) as exc:
+        d["input_post_state"] = f"source uninspectable: {exc}"
+        failures.append(
+            {
+                "code": errors.INTERNAL_ERROR,
+                "detail": f"source post-state uninspectable: {exc}",
+            }
+        )
     try:
-        d["source_sha256_post"] = snapshot.sha256_file(target)
-        d["import_snapshot_signature_post"] = snapshot.signature(snapshot.snapshot_tree(ws.imports))
+        d["flags_sha256_post"] = snapshot.sha256_file(config.flags)
+    except OSError as exc:
+        d["input_post_state"] = f"flags uninspectable: {exc}"
+        failures.append(
+            {
+                "code": errors.INTERNAL_ERROR,
+                "detail": f"flags post-state uninspectable: {exc}",
+            }
+        )
+    try:
+        d["import_snapshot_signature_post"] = snapshot.signature(
+            snapshot.snapshot_tree(ws.imports)
+        )
     except (OSError, snapshot.SnapshotUninspectable) as exc:
-        d["input_post_state"] = f"uninspectable: {exc}"
+        d["input_post_state"] = f"import root uninspectable: {exc}"
+        failures.append(
+            {
+                "code": errors.INTERNAL_ERROR,
+                "detail": f"import root post-state uninspectable: {exc}",
+            }
+        )
+    return failures
+
+
+def _record_post_workspace_state(
+    ws: workspace.Workspace,
+    baseline: tuple[snapshot.FileEntry, ...] | None,
+    d: dict[str, object],
+) -> list[dict[str, str]]:
+    """Snapshot the workspace post-run and classify undeclared additions.
+
+    Runs on every path that recorded a pre-spawn baseline, so criterion 12 is
+    measurable for failed and timed-out runs too. The only accepted additions
+    are the declared expected output and the declared scratch areas (``logs/``,
+    ``temp/``). Every other new file is an ``UNEXPECTED_OUTPUT_PRESENT``
+    finding; a path outside the workspace cannot appear in the whole-workspace
+    snapshot and remains the containment gate's ``WORKSPACE_VIOLATION``, so the
+    two classes are never merged.
+    """
+    failures: list[dict[str, str]] = []
+    if baseline is None:
+        d["workspace_post_inspected"] = False
+        failures.append(
+            {
+                "code": errors.INTERNAL_ERROR,
+                "detail": "workspace baseline absent; post-state not measured",
+            }
+        )
+        return failures
+    try:
+        after = snapshot.snapshot_tree(ws.root)
+        added = _added_paths(baseline, after)
+        allowed = d.get("expected_output_rel")
+        unexpected = sorted(
+            p
+            for p in added
+            if p != allowed and not p.startswith("logs/") and not p.startswith("temp/")
+        )
+        d["workspace_added_paths"] = sorted(added)
+        d["unexpected_outputs"] = unexpected
+        d["workspace_post_inspected"] = True
+        if unexpected:
+            failures.append(
+                {
+                    "code": errors.UNEXPECTED_OUTPUT_PRESENT,
+                    "detail": str(unexpected),
+                }
+            )
+    except (OSError, snapshot.SnapshotUninspectable) as exc:
+        d["workspace_post_inspected"] = False
+        failures.append(
+            {
+                "code": errors.INTERNAL_ERROR,
+                "detail": f"workspace post-state uninspectable: {exc}",
+            }
+        )
+    return failures
 
 
 def _settle_input_verdict(ev: RunEvidence) -> None:
-    """Attach INPUT_HASH_MISMATCH when a recorded comparison disagrees."""
+    """Attach INPUT_HASH_MISMATCH when a *measured* comparison disagrees.
+
+    A missing post value is unmeasured, not changed: the post-state recorder
+    already emitted ``INTERNAL_ERROR`` for it. ``INPUT_HASH_MISMATCH`` is only
+    produced when both the pre and post values exist and differ, for any of the
+    three declared read-only inputs (source, flags, import root).
+    """
     d = ev.details
+    changed = False
     pre = d.get("source_sha256_pre")
     post = d.get("source_sha256_post")
-    if pre is None or post is None:
-        return
-    changed = pre != post or d.get("import_snapshot_signature_pre") != d.get(
-        "import_snapshot_signature_post"
-    )
+    if pre is not None and post is not None and pre != post:
+        changed = True
+    flags_pre = d.get("flags_sha256_pre")
+    flags_post = d.get("flags_sha256_post")
+    if flags_pre is not None and flags_post is not None and flags_pre != flags_post:
+        changed = True
+    import_pre = d.get("import_snapshot_signature_pre")
+    import_post = d.get("import_snapshot_signature_post")
+    if import_pre is not None and import_post is not None and import_pre != import_post:
+        changed = True
     if not changed:
         return
     entry = {
@@ -466,11 +609,3 @@ def write_evidence(ws: workspace.Workspace, evidence: RunEvidence) -> str:
         json.dump(evidence.to_dict(), fh, indent=2, sort_keys=True)
     fh.close()
     return path
-
-
-_PII_RE = re.compile(r"[A-Za-z]:\\\\[^\\\s]*")
-
-
-def redact_for_report(text: str, exe: str, flags: str, ws_root: str) -> str:
-    """Sanitize a captured diagnostic before it can reach a committed report."""
-    return sanitize(text, exe, flags, ws_root)

@@ -2,8 +2,8 @@
   "determinism": {
     "equal": false,
     "outcome_code": "DETERMINISM_MISMATCH",
-    "run_a_sha256": "a5c5684d422d70e8f76d6187f79e475cdac38e22977a3e882bb07c734d8f8501",
-    "run_b_sha256": "a3c0e4258da1b6b9d405aa820839928dcaf60fade4f0bc9689fca21ec7297645"
+    "run_a_sha256": "f0d91aded3b98a1e265b51f11c9c389f57cbcbbbd5ea30df9cd63ce017207207",
+    "run_b_sha256": "cd06b16d0fc6a74d1e39924b1a7b9232d108579b889ad1ee3bc7cb5cdcd1b8b2"
   },
   "meta": {
     "executable_sha256": "32281080fd8c8382ced212cd9a3d0debca811954d8929cdf1a971d06b1d861a3",
@@ -15,10 +15,10 @@
       "fixture_success/Poc003Types.psc": "8f23d30f97be328cb66b7d7935290b2a6eeef4f96a8e31f92bb7770a11c65c5f"
     },
     "flags_sha256": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
-    "generated_utc": "2026-09-06T15:41:00.610322+00:00",
+    "generated_utc": "2026-09-11T20:10:45.627949+00:00",
     "hang_functions": 40000,
     "host_os": "Windows-10-10.0.19045-SP0",
-    "machine": "AMD64",
+    "machine": "",
     "profile_id": "PAPYRUS_COMPILE_DRYRUN_V1",
     "python": "3.11.9",
     "timeout_deadline_s": 8.0,
@@ -37,7 +37,7 @@
         ],
         "cleanup_mechanisms": [
           "job_object_close",
-          "direct_child_terminate"
+          "direct_child_exited"
         ],
         "cwd_sanitized": "<WORKSPACE_ROOT>",
         "deadline_s": 60.0,
@@ -46,7 +46,7 @@
         "descendants_observed": {},
         "direct_child": true,
         "direct_child_alive_after_cleanup": false,
-        "elapsed_s": 0.453,
+        "elapsed_s": 1.032,
         "env_keys": [
           "COMSPEC",
           "PATH",
@@ -58,7 +58,8 @@
         "executable_sha256": "32281080fd8c8382ced212cd9a3d0debca811954d8929cdf1a971d06b1d861a3",
         "exit_code": 0,
         "expected_output_rel": "candidates/Poc003Minimal.pex",
-        "flags_sha256": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_post": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_pre": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
         "import_snapshot_changes": {
           "added": [],
           "modified": [],
@@ -72,14 +73,15 @@
         "import_snapshot_size_pre": 1,
         "io_threads_leaked": false,
         "job_object": "assigned",
-        "output_sha256": "a5c5684d422d70e8f76d6187f79e475cdac38e22977a3e882bb07c734d8f8501",
-        "output_sha256_recomputed": "a5c5684d422d70e8f76d6187f79e475cdac38e22977a3e882bb07c734d8f8501",
+        "output_sha256": "f0d91aded3b98a1e265b51f11c9c389f57cbcbbbd5ea30df9cd63ce017207207",
+        "output_sha256_recomputed": "f0d91aded3b98a1e265b51f11c9c389f57cbcbbbd5ea30df9cd63ce017207207",
         "output_size": 506,
-        "pid": 16312,
+        "pid": 8376,
         "shell": false,
         "shell_processes_in_launch_tree": [],
         "source_sha256_post": "33160f8ed5f70bf2f8083981bdd89b903e3d61e182baf6fbbfac8656122ed542",
         "source_sha256_pre": "33160f8ed5f70bf2f8083981bdd89b903e3d61e182baf6fbbfac8656122ed542",
+        "spawn_suspended": false,
         "stderr_bytes_retained": 0,
         "stderr_bytes_total": 0,
         "stderr_truncated": false,
@@ -90,14 +92,15 @@
         "timed_out": false,
         "tool_creation_time_available": true,
         "tree_observation_reliable": true,
-        "tree_samples": 8,
+        "tree_samples": 18,
         "unexpected_outputs": [],
         "workspace_added_paths": [
           "candidates/Poc003Minimal.pex",
           "logs/stderr.log",
           "logs/stdout.log"
         ],
-        "workspace_baseline_signature": "ec295bb3985fcc1229aadae22dbb28520071f4ed2fb97527f43bf9272bd2b423"
+        "workspace_baseline_signature": "ec295bb3985fcc1229aadae22dbb28520071f4ed2fb97527f43bf9272bd2b423",
+        "workspace_post_inspected": true
       },
       "failures": [],
       "operation": "compile_fixture",
@@ -119,7 +122,7 @@
         ],
         "cleanup_mechanisms": [
           "job_object_close",
-          "direct_child_terminate"
+          "direct_child_exited"
         ],
         "cwd_sanitized": "<WORKSPACE_ROOT>",
         "deadline_s": 60.0,
@@ -128,7 +131,7 @@
         "descendants_observed": {},
         "direct_child": true,
         "direct_child_alive_after_cleanup": false,
-        "elapsed_s": 0.469,
+        "elapsed_s": 0.515,
         "env_keys": [
           "COMSPEC",
           "PATH",
@@ -140,7 +143,8 @@
         "executable_sha256": "32281080fd8c8382ced212cd9a3d0debca811954d8929cdf1a971d06b1d861a3",
         "exit_code": 0,
         "expected_output_rel": "candidates/Poc003Minimal.pex",
-        "flags_sha256": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_post": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_pre": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
         "import_snapshot_changes": {
           "added": [],
           "modified": [],
@@ -154,14 +158,15 @@
         "import_snapshot_size_pre": 1,
         "io_threads_leaked": false,
         "job_object": "assigned",
-        "output_sha256": "a3c0e4258da1b6b9d405aa820839928dcaf60fade4f0bc9689fca21ec7297645",
-        "output_sha256_recomputed": "a3c0e4258da1b6b9d405aa820839928dcaf60fade4f0bc9689fca21ec7297645",
+        "output_sha256": "cd06b16d0fc6a74d1e39924b1a7b9232d108579b889ad1ee3bc7cb5cdcd1b8b2",
+        "output_sha256_recomputed": "cd06b16d0fc6a74d1e39924b1a7b9232d108579b889ad1ee3bc7cb5cdcd1b8b2",
         "output_size": 506,
-        "pid": 23752,
+        "pid": 1968,
         "shell": false,
         "shell_processes_in_launch_tree": [],
         "source_sha256_post": "33160f8ed5f70bf2f8083981bdd89b903e3d61e182baf6fbbfac8656122ed542",
         "source_sha256_pre": "33160f8ed5f70bf2f8083981bdd89b903e3d61e182baf6fbbfac8656122ed542",
+        "spawn_suspended": false,
         "stderr_bytes_retained": 0,
         "stderr_bytes_total": 0,
         "stderr_truncated": false,
@@ -172,14 +177,15 @@
         "timed_out": false,
         "tool_creation_time_available": true,
         "tree_observation_reliable": true,
-        "tree_samples": 8,
+        "tree_samples": 9,
         "unexpected_outputs": [],
         "workspace_added_paths": [
           "candidates/Poc003Minimal.pex",
           "logs/stderr.log",
           "logs/stdout.log"
         ],
-        "workspace_baseline_signature": "ec295bb3985fcc1229aadae22dbb28520071f4ed2fb97527f43bf9272bd2b423"
+        "workspace_baseline_signature": "ec295bb3985fcc1229aadae22dbb28520071f4ed2fb97527f43bf9272bd2b423",
+        "workspace_post_inspected": true
       },
       "failures": [],
       "operation": "compile_fixture",
@@ -201,18 +207,18 @@
         ],
         "cleanup_mechanisms": [
           "job_object_close",
-          "direct_child_terminate"
+          "direct_child_exited"
         ],
         "cwd_sanitized": "<WORKSPACE_ROOT>",
         "deadline_s": 60.0,
         "descendant_count": 1,
         "descendants_alive_after_cleanup": [],
         "descendants_observed": {
-          "20620": "PapyrusAssembler.exe"
+          "18440": "PapyrusAssembler.exe"
         },
         "direct_child": true,
         "direct_child_alive_after_cleanup": false,
-        "elapsed_s": 18.328,
+        "elapsed_s": 19.281,
         "env_keys": [
           "COMSPEC",
           "PATH",
@@ -224,7 +230,8 @@
         "executable_sha256": "32281080fd8c8382ced212cd9a3d0debca811954d8929cdf1a971d06b1d861a3",
         "exit_code": 0,
         "expected_output_rel": "candidates/Poc003Hang.pex",
-        "flags_sha256": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_post": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_pre": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
         "import_snapshot_pre": [
           "Poc003Minimal.psc",
           "Poc003Types.psc"
@@ -234,11 +241,12 @@
         "import_snapshot_size_pre": 2,
         "io_threads_leaked": false,
         "job_object": "assigned",
-        "pid": 5448,
+        "pid": 7532,
         "shell": false,
         "shell_processes_in_launch_tree": [],
         "source_sha256_post": "846e9d795a4b208bd85df9131ae3925eabf5e7b9ca24fd8a3dd412cb0a979622",
         "source_sha256_pre": "846e9d795a4b208bd85df9131ae3925eabf5e7b9ca24fd8a3dd412cb0a979622",
+        "spawn_suspended": false,
         "stderr_bytes_retained": 0,
         "stderr_bytes_total": 0,
         "stderr_truncated": false,
@@ -249,8 +257,14 @@
         "timed_out": false,
         "tool_creation_time_available": true,
         "tree_observation_reliable": true,
-        "tree_samples": 326,
-        "workspace_baseline_signature": "834e18f3b1f4a4c96963e8dc76c7f074aa302fe9b9f7a9e59fd0780a8853b8c4"
+        "tree_samples": 346,
+        "unexpected_outputs": [],
+        "workspace_added_paths": [
+          "logs/stderr.log",
+          "logs/stdout.log"
+        ],
+        "workspace_baseline_signature": "834e18f3b1f4a4c96963e8dc76c7f074aa302fe9b9f7a9e59fd0780a8853b8c4",
+        "workspace_post_inspected": true
       },
       "failures": [
         {
@@ -277,7 +291,7 @@
         ],
         "cleanup_mechanisms": [
           "job_object_close",
-          "direct_child_terminate"
+          "direct_child_exited"
         ],
         "cwd_sanitized": "<WORKSPACE_ROOT>",
         "deadline_s": 60.0,
@@ -298,7 +312,8 @@
         "executable_sha256": "32281080fd8c8382ced212cd9a3d0debca811954d8929cdf1a971d06b1d861a3",
         "exit_code": 4294967295,
         "expected_output_rel": "candidates/Poc003Broken.pex",
-        "flags_sha256": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_post": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_pre": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
         "import_snapshot_pre": [
           "Poc003Types.psc"
         ],
@@ -307,23 +322,30 @@
         "import_snapshot_size_pre": 1,
         "io_threads_leaked": false,
         "job_object": "assigned",
-        "pid": 17076,
+        "pid": 3220,
         "shell": false,
         "shell_processes_in_launch_tree": [],
         "source_sha256_post": "0a2510d440df5208c2f411e64d6e8944a8377a3f19ab929f2445729c6c96472b",
         "source_sha256_pre": "0a2510d440df5208c2f411e64d6e8944a8377a3f19ab929f2445729c6c96472b",
-        "stderr_bytes_retained": 146,
-        "stderr_bytes_total": 146,
+        "spawn_suspended": false,
+        "stderr_bytes_retained": 147,
+        "stderr_bytes_total": 147,
         "stderr_truncated": false,
-        "stdout_bytes_retained": 347,
-        "stdout_bytes_total": 347,
+        "stdout_bytes_retained": 349,
+        "stdout_bytes_total": 349,
         "stdout_truncated": false,
         "stream_limit_bytes": 65536,
         "timed_out": false,
         "tool_creation_time_available": true,
         "tree_observation_reliable": true,
         "tree_samples": 4,
-        "workspace_baseline_signature": "c7b9c97a5e7f0034c703ebc24773212d3d3a27016167fd46279eabd558325ce1"
+        "unexpected_outputs": [],
+        "workspace_added_paths": [
+          "logs/stderr.log",
+          "logs/stdout.log"
+        ],
+        "workspace_baseline_signature": "c7b9c97a5e7f0034c703ebc24773212d3d3a27016167fd46279eabd558325ce1",
+        "workspace_post_inspected": true
       },
       "failures": [
         {
@@ -358,11 +380,11 @@
         "descendant_count": 1,
         "descendants_alive_after_cleanup": [],
         "descendants_observed": {
-          "22628": "PapyrusAssembler.exe"
+          "18564": "PapyrusAssembler.exe"
         },
         "direct_child": true,
         "direct_child_alive_after_cleanup": false,
-        "elapsed_s": 8.031,
+        "elapsed_s": 8.016,
         "env_keys": [
           "COMSPEC",
           "PATH",
@@ -374,7 +396,8 @@
         "executable_sha256": "32281080fd8c8382ced212cd9a3d0debca811954d8929cdf1a971d06b1d861a3",
         "exit_code": 0,
         "expected_output_rel": "candidates/Poc003Hang.pex",
-        "flags_sha256": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_post": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
+        "flags_sha256_pre": "ab61d098ef7a1402d8ee4d7bc77f26851d5380cd142ee4f3bf57ce41d0e7afa7",
         "import_snapshot_pre": [
           "Poc003Minimal.psc",
           "Poc003Types.psc"
@@ -384,11 +407,12 @@
         "import_snapshot_size_pre": 2,
         "io_threads_leaked": false,
         "job_object": "assigned",
-        "pid": 24256,
+        "pid": 16448,
         "shell": false,
         "shell_processes_in_launch_tree": [],
         "source_sha256_post": "846e9d795a4b208bd85df9131ae3925eabf5e7b9ca24fd8a3dd412cb0a979622",
         "source_sha256_pre": "846e9d795a4b208bd85df9131ae3925eabf5e7b9ca24fd8a3dd412cb0a979622",
+        "spawn_suspended": false,
         "stderr_bytes_retained": 0,
         "stderr_bytes_total": 0,
         "stderr_truncated": false,
@@ -399,13 +423,26 @@
         "timed_out": true,
         "tool_creation_time_available": true,
         "tree_observation_reliable": true,
-        "tree_samples": 142,
-        "workspace_baseline_signature": "834e18f3b1f4a4c96963e8dc76c7f074aa302fe9b9f7a9e59fd0780a8853b8c4"
+        "tree_samples": 144,
+        "unexpected_outputs": [
+          "candidates/Poc003Hang.pas"
+        ],
+        "workspace_added_paths": [
+          "candidates/Poc003Hang.pas",
+          "logs/stderr.log",
+          "logs/stdout.log"
+        ],
+        "workspace_baseline_signature": "834e18f3b1f4a4c96963e8dc76c7f074aa302fe9b9f7a9e59fd0780a8853b8c4",
+        "workspace_post_inspected": true
       },
       "failures": [
         {
           "code": "PROCESS_TIMEOUT",
           "detail": "deadline 8.0s exceeded"
+        },
+        {
+          "code": "UNEXPECTED_OUTPUT_PRESENT",
+          "detail": "['candidates/Poc003Hang.pas']"
         }
       ],
       "operation": "compile_fixture",

@@ -80,6 +80,29 @@ class EnvironmentTests(unittest.TestCase):
         self.assertNotEqual(env["TEMP"], os.environ.get("TEMP"))
 
 
+class ConfigValidationTests(unittest.TestCase):
+    def test_non_object_json_config_is_rejected(self):
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            json.dump(["not", "an", "object"], handle)
+            path = handle.name
+        self.addCleanup(os.unlink, path)
+        with self.assertRaises(profile.ProfileViolation):
+            profile.LocalConfig.from_file(path)
+
+    def test_malformed_json_config_is_rejected(self):
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            handle.write("{ not json")
+            path = handle.name
+        self.addCleanup(os.unlink, path)
+        with self.assertRaises(profile.ProfileViolation):
+            profile.LocalConfig.from_file(path)
+
+
 class TaxonomyTests(unittest.TestCase):
     def test_transport_bound_codes_are_never_declared(self):
         """ADR-004 E8: nine codes cannot fire without a wire transport."""

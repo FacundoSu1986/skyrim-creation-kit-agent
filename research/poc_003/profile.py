@@ -89,6 +89,11 @@ class LocalConfig:
         except (OSError, ValueError) as exc:
             raise ProfileViolation(f"unreadable local config {path!r}: {exc}") from exc
 
+        if not isinstance(data, dict):
+            raise ProfileViolation(
+                f"local config must be a JSON object, got {type(data).__name__}"
+            )
+
         missing = [
             key
             for key in ("executable", "executable_sha256", "flags", "flags_sha256")

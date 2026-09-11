@@ -22,11 +22,17 @@ from ctypes import wintypes
 from dataclasses import dataclass
 
 TH32CS_SNAPPROCESS = 0x00000002
-INVALID_HANDLE_VALUE = -1
+TH32CS_SNAPTHREAD = 0x00000004
+#: ``INVALID_HANDLE_VALUE`` is ``-1`` as a *pointer-width unsigned* value.
+#: ``ctypes`` returns restype ``HANDLE`` (``c_void_p``) as that unsigned
+#: integer (18446744073709551615 on 64-bit), so comparing against ``-1`` would
+#: never match. This reads as the exact value the Win32 API returns.
+INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 STILL_ACTIVE = 259
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_TERMINATE = 0x0001
 PROCESS_SET_QUOTA = 0x0100
+THREAD_SUSPEND_RESUME = 0x0002
 
 _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
@@ -34,10 +40,15 @@ _kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
 _kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
 _kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
 _kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+_kernel32.Thread32First.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+_kernel32.Thread32Next.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
 _kernel32.OpenProcess.restype = wintypes.HANDLE
 _kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 _kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
 _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+_kernel32.OpenThread.restype = wintypes.HANDLE
+_kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+_kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
 _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 
 
@@ -53,6 +64,18 @@ class PROCESSENTRY32W(ctypes.Structure):
         ("pcPriClassBase", wintypes.LONG),
         ("dwFlags", wintypes.DWORD),
         ("szExeFile", wintypes.WCHAR * 260),
+    ]
+
+
+class THREADENTRY32(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", wintypes.DWORD),
+        ("cntUsage", wintypes.DWORD),
+        ("th32ThreadID", wintypes.DWORD),
+        ("th32OwnerProcessID", wintypes.DWORD),
+        ("tpBasePri", wintypes.LONG),
+        ("tpDeltaPri", wintypes.LONG),
+        ("dwFlags", wintypes.DWORD),
     ]
 
 
@@ -91,7 +114,7 @@ def snapshot() -> tuple[Proc, ...]:
         ProctreeUnavailable: the snapshot could not be taken or is empty.
     """
     handle = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-    if handle in (INVALID_HANDLE_VALUE, 0, None):  # type: ignore[comparison-overlap]
+    if handle is None or handle == INVALID_HANDLE_VALUE:
         raise ProctreeUnavailable(
             f"CreateToolhelp32Snapshot failed (last_error={ctypes.get_last_error()})"
         )
@@ -128,6 +151,46 @@ def selfcheck() -> bool:
     except ProctreeUnavailable:
         return False
     return any(p.pid == os.getpid() for p in procs)
+
+
+def resume(pid: int) -> bool:
+    """Resume the (suspended) primary thread of ``pid``.
+
+    Used after spawning with ``CREATE_SUSPENDED``: the process must not run a
+    single instruction before the orchestrator has assigned it to the Job
+    Object, but once that assignment succeeds the primary thread must be
+    resumed or the run would hang forever.
+
+    Returns ``True`` when ResumeThread was accepted. ``False`` means the thread
+    could not be enumerated or opened, or its suspend count could not be read;
+    the caller must not leave the process suspended.
+    """
+    handle = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
+    if handle is None or handle == INVALID_HANDLE_VALUE:
+        return False
+    try:
+        entry = THREADENTRY32()
+        entry.dwSize = ctypes.sizeof(THREADENTRY32)
+        ok = _kernel32.Thread32First(handle, ctypes.byref(entry))
+        thread_id: int | None = None
+        while ok:
+            if entry.th32OwnerProcessID == pid:
+                thread_id = int(entry.th32ThreadID)
+                break
+            entry = THREADENTRY32()
+            entry.dwSize = ctypes.sizeof(THREADENTRY32)
+            ok = _kernel32.Thread32Next(handle, ctypes.byref(entry))
+        if thread_id is None:
+            return False
+        thread = _kernel32.OpenThread(THREAD_SUSPEND_RESUME, False, thread_id)
+        if not thread:
+            return False
+        try:
+            return _kernel32.ResumeThread(thread) != 0xFFFFFFFF
+        finally:
+            _kernel32.CloseHandle(thread)
+    finally:
+        _kernel32.CloseHandle(handle)
 
 
 def is_alive(pid: int) -> bool:

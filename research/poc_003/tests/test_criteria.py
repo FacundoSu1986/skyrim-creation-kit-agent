@@ -36,8 +36,11 @@ def _run_details(**overrides):
         "stderr_truncated": False,
         "source_sha256_pre": "bb" * 32,
         "source_sha256_post": "bb" * 32,
+        "flags_sha256_pre": "12" * 32,
+        "flags_sha256_post": "12" * 32,
         "import_snapshot_signature_pre": "cc" * 32,
         "import_snapshot_signature_post": "cc" * 32,
+        "workspace_post_inspected": True,
         "output_size": 506,
         "output_sha256": "dd" * 32,
         "output_sha256_recomputed": "dd" * 32,
@@ -154,6 +157,79 @@ class EvaluatorTests(unittest.TestCase):
         bundle = _bundle()
         bundle["runs"]["A"]["details"]["source_sha256_post"] = "ab" * 32
         self.assertEqual("FAIL", self._verdict(11, bundle).verdict)
+
+    def test_flags_mutation_fails_criterion_11(self):
+        bundle = _bundle()
+        bundle["runs"]["A"]["details"]["flags_sha256_post"] = "ab" * 32
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INPUT_HASH_MISMATCH", row.outcome_code)
+
+    def test_import_mutation_fails_criterion_11(self):
+        bundle = _bundle()
+        bundle["runs"]["A"]["details"]["import_snapshot_signature_post"] = "ab" * 32
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INPUT_HASH_MISMATCH", row.outcome_code)
+
+    def test_missing_flags_post_evidence_makes_criterion_11_fail(self):
+        bundle = _bundle()
+        del bundle["runs"]["A"]["details"]["flags_sha256_post"]
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+
+    def test_missing_source_post_evidence_makes_criterion_11_fail(self):
+        bundle = _bundle()
+        del bundle["runs"]["B"]["details"]["source_sha256_post"]
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+
+    def test_missing_import_post_evidence_makes_criterion_11_fail(self):
+        bundle = _bundle()
+        del bundle["runs"]["A"]["details"]["import_snapshot_signature_post"]
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+
+    def test_missing_flags_pre_evidence_makes_criterion_11_fail(self):
+        """A run that never reached the pre-state cannot pass criterion 11."""
+        bundle = _bundle()
+        del bundle["runs"]["timeout"]["details"]["flags_sha256_pre"]
+        row = self._verdict(11, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+
+    def test_missing_workspace_post_inspection_makes_criterion_12_fail(self):
+        """Absent post-state must FAIL: missing evidence is not an empty list."""
+        bundle = _bundle()
+        del bundle["runs"]["A"]["details"]["workspace_post_inspected"]
+        row = self._verdict(12, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+
+    def test_missing_unexpected_outputs_field_makes_criterion_12_fail(self):
+        bundle = _bundle()
+        del bundle["runs"]["A"]["details"]["unexpected_outputs"]
+        row = self._verdict(12, bundle)
+        self.assertEqual("FAIL", row.verdict)
+        self.assertEqual("INTERNAL_ERROR", row.outcome_code)
+
+    def test_empty_runs_fails_closed(self):
+        """A truncated bundle must render a failing matrix, not a passing one."""
+        bundle = _bundle()
+        bundle["runs"] = {}
+        bundle["determinism"] = {"equal": True, "run_a_sha256": "11" * 32, "run_b_sha256": "11" * 32}
+        rows = criteria.evaluate(bundle)
+        for number in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
+            self.assertEqual(
+                "FAIL",
+                next(r for r in rows if r.number == number).verdict,
+                f"criterion {number} must fail closed with no runs",
+            )
+        summary = criteria.summarize(rows)
+        self.assertFalse(summary["all_pass"])
 
     def test_unexpected_output_fails_criterion_12(self):
         bundle = _bundle()

@@ -212,7 +212,10 @@ class DeadlineAndCleanupTests(unittest.TestCase):
             ev = _run(ws, "spawn_child", deadline_s=4.0)
             self.assertEqual(errors.PROCESS_TIMEOUT, ev.outcome_code)
             self.assertGreaterEqual(ev.details["descendant_count"], 1)
-            self.assertEqual("job_object_close", ev.details["cleanup_mechanisms"][-2])
+            # Containment, not position: the tail of ``cleanup_mechanisms``
+            # depends on whether the child had already exited when the job was
+            # closed, so asserting an index would make this test racy.
+            self.assertIn("job_object_close", ev.details["cleanup_mechanisms"])
             self.assertEqual([], ev.details["descendants_alive_after_cleanup"])
 
     def test_stale_ancestry_from_a_recycled_pid_is_not_a_descendant(self):
@@ -246,13 +249,94 @@ class DeadlineAndCleanupTests(unittest.TestCase):
                 def __init__(self, *a, **k):
                     raise jobobject.JobObjectUnavailable("forced")
 
-            with unittest.mock.patch.object(jobobject, "JobObject", NoJob), \
-                 unittest.mock.patch.object(proctree, "kill", return_value=False):
-                ev = _run(ws, "spawn_child", deadline_s=4.0)
-            self.assertEqual(errors.DESCENDANT_PROCESS_SURVIVED, ev.outcome_code)
-            self.assertTrue(ev.details["descendants_alive_after_cleanup"])
-            for pid in ev.details["descendants_alive_after_cleanup"]:
-                proctree.kill(pid)
+            try:
+                with unittest.mock.patch.object(jobobject, "JobObject", NoJob), \
+                     unittest.mock.patch.object(proctree, "kill", return_value=False):
+                    ev = _run(ws, "spawn_child", deadline_s=4.0)
+                    self.assertEqual(errors.DESCENDANT_PROCESS_SURVIVED, ev.outcome_code)
+                    self.assertTrue(ev.details["descendants_alive_after_cleanup"])
+            finally:
+                # The fake child must be reaped even when an assertion above
+                # fails; a stray 300-second sleeper would poison later tests.
+                for pid in ev.details.get("descendants_alive_after_cleanup", []):
+                    proctree.kill(pid)
+
+
+class PostStateEvidenceTests(unittest.TestCase):
+    """flags/workspace post-state must be recorded and adjudicated on every path."""
+
+    def test_flags_post_hash_recorded_on_success(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "success", deadline_s=30.0)
+            self.assertIn("flags_sha256_pre", ev.details)
+            self.assertIn("flags_sha256_post", ev.details)
+            self.assertEqual(ev.details["flags_sha256_pre"], ev.details["flags_sha256_post"])
+
+    def test_flags_post_hash_recorded_on_process_failure(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "fail", deadline_s=30.0)
+            self.assertEqual(errors.PROCESS_FAILED, ev.outcome_code)
+            self.assertIn("flags_sha256_pre", ev.details)
+            self.assertIn("flags_sha256_post", ev.details)
+            self.assertEqual(ev.details["flags_sha256_pre"], ev.details["flags_sha256_post"])
+
+    def test_flags_post_hash_recorded_on_timeout(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "sleep", deadline_s=3.0)
+            self.assertEqual(errors.PROCESS_TIMEOUT, ev.outcome_code)
+            self.assertIn("flags_sha256_pre", ev.details)
+            self.assertIn("flags_sha256_post", ev.details)
+
+    def test_flags_mutation_on_failure_path_is_detected(self):
+        """A tool that corrupts the flags file and exits 0 without an artifact
+        must surface INPUT_HASH_MISMATCH in addition to the primary outcome."""
+        with TempWorkspace() as ws:
+            ev = _run(ws, "mutate_flags", deadline_s=30.0)
+            self.assertNotEqual(ev.details["flags_sha256_pre"], ev.details["flags_sha256_post"])
+            self.assertIn(errors.INPUT_HASH_MISMATCH, [f["code"] for f in ev.failures])
+
+    def test_workspace_post_snapshot_runs_on_success(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "success", deadline_s=30.0)
+            self.assertTrue(ev.details["workspace_post_inspected"])
+            self.assertIn("unexpected_outputs", ev.details)
+
+    def test_workspace_post_snapshot_runs_on_process_failure(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "fail", deadline_s=30.0)
+            self.assertEqual(errors.PROCESS_FAILED, ev.outcome_code)
+            self.assertTrue(ev.details["workspace_post_inspected"])
+            self.assertEqual([], ev.details["unexpected_outputs"])
+
+    def test_workspace_post_snapshot_runs_on_timeout(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "sleep", deadline_s=3.0)
+            self.assertEqual(errors.PROCESS_TIMEOUT, ev.outcome_code)
+            self.assertTrue(ev.details["workspace_post_inspected"])
+            self.assertIn("unexpected_outputs", ev.details)
+
+    def test_unexpected_output_created_on_failure_path_is_detected(self):
+        with TempWorkspace() as ws:
+            ev = _run(ws, "fail_and_stray", deadline_s=30.0, expected_output_name="Poc003Minimal.pex")
+            self.assertEqual(errors.PROCESS_FAILED, ev.outcome_code)
+            self.assertTrue(ev.details["workspace_post_inspected"])
+            self.assertEqual(["stray.txt"], ev.details["unexpected_outputs"])
+            self.assertIn(errors.UNEXPECTED_OUTPUT_PRESENT, [f["code"] for f in ev.failures])
+
+    def test_primary_failure_and_post_state_failure_coexist(self):
+        """PROCESS_FAILED and UNEXPECTED_OUTPUT_PRESENT must coexist in failures."""
+        with TempWorkspace() as ws:
+            ev = _run(ws, "fail_and_stray", deadline_s=30.0)
+            codes = [f["code"] for f in ev.failures]
+            self.assertIn(errors.PROCESS_FAILED, codes)
+            self.assertIn(errors.UNEXPECTED_OUTPUT_PRESENT, codes)
+
+
+class ProctreeContractTests(unittest.TestCase):
+    def test_invalid_handle_value_is_pointer_width(self):
+        import ctypes
+
+        self.assertEqual(proctree.INVALID_HANDLE_VALUE, ctypes.c_void_p(-1).value)
 
 
 class DeterminismTests(unittest.TestCase):

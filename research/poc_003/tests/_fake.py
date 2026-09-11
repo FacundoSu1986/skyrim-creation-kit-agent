@@ -43,6 +43,18 @@ elif BEHAVIOUR == "fail":
     sys.stderr.write("synthetic failure")
     sys.exit(3)
 
+elif BEHAVIOUR == "mutate_flags":
+    flags_path = args.get("-f", "")
+    if flags_path:
+        with open(flags_path, "wb") as fh:
+            fh.write(b"tampered")
+    sys.exit(0)
+
+elif BEHAVIOUR == "fail_and_stray":
+    with open(os.path.join(ws_root, "stray.txt"), "wb") as fh:
+        fh.write(b"undeclared")
+    sys.exit(3)
+
 elif BEHAVIOUR == "sleep":
     time.sleep(300)
 

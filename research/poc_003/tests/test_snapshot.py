@@ -86,6 +86,14 @@ class SnapshotTests(unittest.TestCase):
         with self.assertRaises(snapshot.SnapshotUninspectable):
             snapshot.snapshot_tree(os.path.join(self.root, "nope"))
 
+    def test_unlistable_subdirectory_fails_closed(self):
+        """os.walk skips an unlistable subtree silently; that must fail closed."""
+        _write(os.path.join(self.root, "a.psc"), b"aaa")
+        _write(os.path.join(self.root, "hidden", "b.psc"), b"bbb")
+        with unittest.mock.patch.object(snapshot.os, "scandir", side_effect=PermissionError("denied")):
+            with self.assertRaises(snapshot.SnapshotUninspectable):
+                snapshot.snapshot_tree(self.root)
+
 
 class ContainmentTests(unittest.TestCase):
     def setUp(self) -> None:

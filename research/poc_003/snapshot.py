@@ -66,6 +66,17 @@ def _reject_if_reparse(path: str, root: str) -> None:
         )
 
 
+def _walk_error(exc: OSError) -> None:
+    """Propagate an unlistable directory as a failed snapshot.
+
+    ``os.walk`` silently skips a subtree whose listing raises (permission
+    denial, removal during the walk, path-length failure). A truncated entry
+    set must not be usable as a digest: an uninspectable entry is an
+    ``INTERNAL_ERROR``, never a skipped entry.
+    """
+    raise SnapshotUninspectable(f"unlistable directory under snapshot root: {exc}")
+
+
 def snapshot_tree(root: str) -> tuple[FileEntry, ...]:
     """Recursively snapshot every regular file under ``root``.
 
@@ -78,7 +89,7 @@ def snapshot_tree(root: str) -> tuple[FileEntry, ...]:
     _reject_if_reparse(root_abs, root_abs)
 
     entries: list[FileEntry] = []
-    for dirpath, dirnames, filenames in os.walk(root_abs, followlinks=False):
+    for dirpath, dirnames, filenames in os.walk(root_abs, onerror=_walk_error, followlinks=False):
         for name in sorted(dirnames):
             _reject_if_reparse(os.path.join(dirpath, name), root_abs)
         for name in sorted(filenames):

@@ -74,20 +74,6 @@ def _prepare_workspace(root: str, fixture_dir: str, source_token: str) -> worksp
     return ws
 
 
-def _run(config: profile.LocalConfig, label: str, base: str, fixture: str,
-         token: str, deadline: float) -> tuple[workspace.Workspace, runner.RunEvidence]:
-    root = os.path.join(base, label)
-    ws = _prepare_workspace(root, os.path.join(FIXTURE_ROOT, fixture), token)
-    request = runner.RunRequest(
-        operation=profile.OP_COMPILE_FIXTURE,
-        source_token=token,
-        deadline_s=deadline,
-    )
-    evidence = runner.run_once(config, ws, request)
-    runner.write_evidence(ws, evidence)
-    return ws, evidence
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
