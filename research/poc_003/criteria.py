@@ -276,7 +276,12 @@ def evaluate(bundle: dict) -> list[Row]:
         "expected .pex exists with size > 0",
         f"pre-existing output never present: {fresh}; "
         + "; ".join(
-            f"{n}: size={_det(runs[n]).get('output_size')} exit={runs[n].get('outcome_code')}"
+            # ``outcome_code`` is null on a successful run (no failure code is
+            # set), so printing it under the label ``exit`` rendered
+            # ``exit=None`` for runs whose real exit code was measured as 0.
+            # Criterion 9 is about the exit code, so read the measured one.
+            f"{n}: size={_det(runs[n]).get('output_size')} "
+            f"exit={_det(runs[n]).get('exit_code')}"
             for n in positive
         )
         + f"; negative fixture: success={neg.get('success')} outcome={neg.get('outcome_code')}",
@@ -285,7 +290,7 @@ def evaluate(bundle: dict) -> list[Row]:
         "EXPECTED_OUTPUT_MISSING, never orchestrator success"
         if verdict_9 == PASS
         else "pre-existing output, a missing artifact, or a negative fixture reported as success",
-        "run:A/B:details.output_size, run:A/B:outcome_code, run:negative:outcome_code",
+        "run:A/B:details.output_size, run:A/B:details.exit_code, run:negative:outcome_code",
         None if verdict_9 == PASS else "EXPECTED_OUTPUT_MISSING",
     ))
 

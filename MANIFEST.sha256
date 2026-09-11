@@ -66,10 +66,10 @@ fdc6c435731d1b287f1e0c84da4f35dc7ce50d9edfae409d2b15cc0c260d0979  ./public/licen
 1b707decf71f8fce59459877a7bb87add192a125ae212e28f36cb3706e93e337  ./docs/research/experiments.md
 5d0546d72c2c0b4d89450a8a0ad53da87a511a3e40b8d0d0e07aa01a59c5f762  ./research/poc_003/README.md
 7c17efb934c90ce8601450758a5d4ac4a66cdab8f2b8d5a5c607fa37e4082fcf  ./research/poc_003/__init__.py
-96a90c8ebe732f21e4aad0197827ffb93d439e94c3cde98ca565919231ae160e  ./research/poc_003/criteria.py
+5c68712b7ad2034dd0e81b1c65fcbd11ce257e078cf49689917c11e1851f8209  ./research/poc_003/criteria.py
 4017f033ed9306ded327262850315072903d4bdf628b9c931ecfec6ec07a2677  ./research/poc_003/errors.py
-db8d5f28011e88aeca1babe30def7240b52cc0c50b2e0fde22327bcea2b75701  ./research/poc_003/evidence/criteria.json
-1a9580f9d7ec8750c8408577bd47d516f7132e1444fedca6a805ca8e28c7aa2c  ./research/poc_003/evidence/matrix.md
+6358e9ff842a1b75ce314d9cf2f0fc8320a807a7f1479a20b6e05f2e4c3d01e3  ./research/poc_003/evidence/criteria.json
+df4bcbeb28c6c8f67efed6506c71d35598d7abcea17dd7c3550718d7ef586945  ./research/poc_003/evidence/matrix.md
 fdb7235d0da523e3138e9e6c2c636490560939a6873b9ccbea3a6dabd4bc6942  ./research/poc_003/evidence/poc003-bundle.json
 5ce5e0d7095994e711c10b80093811bb4149decd0c76781afbbe7b5d0d7e1296  ./research/poc_003/fixtures/README.md
 0a2510d440df5208c2f411e64d6e8944a8377a3f19ab929f2445729c6c96472b  ./research/poc_003/fixtures/fixture_compile_error/Poc003Broken.psc
@@ -85,7 +85,7 @@ d33f955c10be1765ad3289e663ac42cc85a39687a9fd99312fb44cd6e9f18018  ./research/poc
 ba8e6868035cc6e45aa5030cd446a7ed6fb063c0ee23f316530cc167a4aff1a3  ./research/poc_003/snapshot.py
 ddf3a90be9b936d45fa19a93bc80f1a78da821b9d8d125903fab5b88460c1e25  ./research/poc_003/tests/_fake.py
 7f238f67619155c7edff265c3febebb522da56ae3ec54c37b1ea3490ab288e4a  ./research/poc_003/tests/_harness.py
-fa194f2e748f859041e32ebab3d672348c662e981878664d8039e075393664c2  ./research/poc_003/tests/test_criteria.py
+ec8b11a2cee68c91468d4c2804baec0c0b60e0a64dc716c713df1beaef4c0a9e  ./research/poc_003/tests/test_criteria.py
 e910bb0eb6eaa4fc8aa69590e235dfbf1964c5e0b25a10f0d4d980f31d4fb81f  ./research/poc_003/tests/test_probe.py
 535ecd36f473833bed5ef14eee8a069efb590d6adab5f1179a39905fa4c8ca15  ./research/poc_003/tests/test_profile.py
 a5eae445e66309a42f002a59c4bd55793f90db9c44e904cc8ca5e8281fbb0a23  ./research/poc_003/tests/test_runner.py

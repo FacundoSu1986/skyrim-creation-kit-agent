@@ -41,6 +41,7 @@ def _run_details(**overrides):
         "import_snapshot_signature_pre": "cc" * 32,
         "import_snapshot_signature_post": "cc" * 32,
         "workspace_post_inspected": True,
+        "exit_code": 0,
         "output_size": 506,
         "output_sha256": "dd" * 32,
         "output_sha256_recomputed": "dd" * 32,
@@ -244,6 +245,18 @@ class EvaluatorTests(unittest.TestCase):
             "details": _run_details(),
         }
         self.assertEqual("FAIL", self._verdict(9, bundle).verdict)
+
+    def test_criterion_9_reports_the_measured_exit_code_not_the_null_outcome_code(self):
+        """Criterion 9 is about exit code 0, so it must print the measured one.
+
+        A successful run carries ``outcome_code = None`` (no failure code is
+        set). Reading that field under the label ``exit`` rendered
+        ``exit=None`` for runs whose real exit code was measured as 0, which
+        reads as "the exit code was not captured" when it was.
+        """
+        row = self._verdict(9, _bundle())
+        self.assertIn("exit=0", row.observed_evidence)
+        self.assertNotIn("exit=None", row.observed_evidence)
 
     def test_matrix_renders_one_row_per_criterion(self):
         rows = criteria.evaluate(_bundle())
