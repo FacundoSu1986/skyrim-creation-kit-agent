@@ -31,6 +31,6 @@
     "postcss": "8.5.28",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.13",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   }
 }
