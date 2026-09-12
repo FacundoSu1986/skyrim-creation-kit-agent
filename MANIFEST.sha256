@@ -14,7 +14,7 @@ f337988ef806d4cc5cd5cc7b8091c767cf88e241763c6f7a03b6b34c1daa530a  ./README.md
 f0c72c3b5497ad1b2b03dcf76ffc2008b7f77b4a36817ac23e50efa43821b60b  ./docs/adr/ADR-001-hybrid-headless-first-architecture.md
 680614c00386c94fad6980ab47dc3df3fa907f2ba36ab559979661d9a3596af4  ./docs/adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md
 0afdac1022e75a9bceed79cd14fd4e8cc347bd0b496f4ad038cbe35f36e5cef1  ./docs/adr/ADR-003-mutagen-runtime-and-license-boundary.md
-10daa61c200aa83561aec1fdc3eee00773c397e216775b180ecc618250d18e99  ./docs/adr/ADR-004-external-tool-execution-contract.md
+9c8827b1934ac3f7d2371d471deb03ede5269086e90716a1cf64418a7e0531c8  ./docs/adr/ADR-004-external-tool-execution-contract.md
 afdd60f978acc78440ff11664f70dac38c981ec35f28fac0dfa341eddac5821b  ./docs/research/2026-08-28-mutagen-feasibility.md
 5a610b3e46b609c5640730eb79ec18a18a1374f94aaa03654a1d03d963fc32d4  ./docs/research/architecture-options.md
 4926c578fba763f79e52b05914b9d0dd166b610b2dcecf6c354b5d498f0172af  ./docs/research/automation-options.md
@@ -62,8 +62,8 @@ bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b  ./public/licen
 5c4f047702e7cc0aed0045f024a9e800dbfe881105c3233fc6466aa844bef9d2  ./public/licenses/THIRD_PARTY_NOTICES.md
 fdc6c435731d1b287f1e0c84da4f35dc7ce50d9edfae409d2b15cc0c260d0979  ./public/licenses/.gitattributes
 4e748950e13db771d2246f1eecff3d9a1661a9ad22daddb194a17cd19a0d8590  ./docs/research/2026-09-01-poc-003-pre-registration.md
-dae0ce22e5bd1cc3a178089ddf73524c93e7b42a1d6565c60adf4a63eeab74fb  ./docs/research/2026-09-06-poc-003-results.md
-a6b6ea60904275499cc3c1d5a817d92dbf3b3c9cebc163ceb6794ab03074f37b  ./docs/research/experiments.md
+2db88da9f7db16898fb7a084307869cf5fd59e2d5218e19bf0923247ebb10f91  ./docs/research/2026-09-06-poc-003-results.md
+62afb305f0f165191ede07541de383429e81c85cba4d7400b102b729b7d7f67c  ./docs/research/experiments.md
 5d0546d72c2c0b4d89450a8a0ad53da87a511a3e40b8d0d0e07aa01a59c5f762  ./research/poc_003/README.md
 7c17efb934c90ce8601450758a5d4ac4a66cdab8f2b8d5a5c607fa37e4082fcf  ./research/poc_003/__init__.py
 879d0f15928c089d995250249f45e8bd065442a80e6bf04b105762730c48b66a  ./research/poc_003/criteria.py
