@@ -18,6 +18,12 @@ Next architectural unit at the time of acceptance: ADR-002 + POC-IPC identifiers
 
 Defines the trusted-root, bounded-I/O, success-contract, timeout/cleanup, path-containment, and evidence-semantics rules that **POC-IPC-001** implemented. Acceptance established the architecture contract only; the implementation arrived later with POC-IPC-001, under its own evidence rules (`OS_SANDBOX` remains `NO VERIFICADO`).
 
+## ADR-004 — External tool execution contract
+
+**Status:** `ACCEPTED` (2026-09-01, revised 2026-09-11).
+
+Defines the execution contract for external tools that do not and cannot speak the [ADR-002](adr/ADR-002-isolated-worker-ipc-and-transactional-boundaries.md) IPC protocol (governing `PapyrusCompiler.exe` under profile `PAPYRUS_COMPILE_DRYRUN_V1` and future xEdit validation). Acceptance established the architecture contract only; the acceptance of ADR-004 does NOT convert POC-003 into `PASS`.
+
 ## POC-002 — Synthetic TES4 safety pipeline
 
 **Status:** **PASS**.
@@ -32,11 +38,21 @@ Windows-only. Enumerate UIA/MSAA controls without coordinates and without saving
 
 ### POC-003 — PapyrusCompiler dry-invoke
 
-Verify deterministic external compiler invocation, timeout behavior, stdout/stderr capture, output existence/hash, and no shell use.
+**Status:** `NO VERIFICADO` (executed 2026-09-06, re-executed 2026-09-11; 13/15 mandatory criteria PASS, 2 mandatory criteria FAIL).
+
+Verify deterministic external compiler invocation, timeout behavior, stdout/stderr capture, output existence/hash, and no shell use under [ADR-004](adr/ADR-004-external-tool-execution-contract.md) profile `PAPYRUS_COMPILE_DRYRUN_V1`.
+
+Executed baseline:
+- Mandatory criterion 12 failed with `UNEXPECTED_OUTPUT_PRESENT`: an interrupted PapyrusCompiler execution leaves an undeclared `candidates/<token>.pas` intermediate.
+- Mandatory criterion 14 failed with `DETERMINISM_MISMATCH`: successful repeated compilations produced byte-different `.pex` artifacts (`SHA256_A != SHA256_B`).
+
+Because mandatory criteria failed, status remains `NO VERIFICADO` and `DETERMINISTIC_OUTPUT` remains `NO VERIFICADO`. Research harness exists in `research/poc_003/`, but no production adapter exists (`harness exists ≠ production adapter exists`).
 
 ### POC-004 — xEdit allowlisted validator
 
-Verify a pinned allowlisted script with `-script -autoexit`, explicit completion evidence, timeout, and no generated Pascal.
+**Status:** `NO VERIFICADO` (next relevant experiment).
+
+Verify a user-installed xEdit invocation using an allowlisted/hash-pinned pre-written script with `-script -autoexit`, explicit completion evidence, bounded timeout, immutable originals, and independent validation (no generated Pascal).
 
 ### POC-IPC-001 — isolated worker protocol
 
