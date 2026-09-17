@@ -1,6 +1,6 @@
 # POC-004 pre-registration — xEdit allowlisted validator
 
-- **Status:** `NO VERIFICADO` — criteria pre-registered 2026-09-17. **Experiment designed, pre-registered, and criteria frozen; NOT yet implemented or executed.**
+- **Status:** `NO VERIFICADO` — criteria pre-registered 2026-09-17 (revised 2026-09-17 following adversarial technical review). **Experiment designed, pre-registered, and criteria frozen; NOT yet implemented or executed.**
 - **Profile:** `XEDIT_VALIDATE_PLUGIN_V1`, defined under [ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (ACCEPTED, ETEC contract class).
 - **Contract class:** External Tool Execution Contract (ETEC).
 - **Authorised by:** Pending owner decision. This document defines the design and freezes acceptance criteria; it does not implement the runtime harness and does not execute xEdit.
@@ -31,7 +31,7 @@ If empirical execution later contradicts an expectation:
 
 ---
 
-## 2. Architectural Context: ETEC vs WIPC
+## 2. Architectural Context: ETEC vs WIPC and Evidence Separation
 
 POC-004 belongs exclusively to the **External Tool Execution Contract (ETEC)** established in [ADR-004](../adr/ADR-004-external-tool-execution-contract.md).
 
@@ -39,47 +39,50 @@ xEdit is **not** a worker under [ADR-002](../adr/ADR-002-isolated-worker-ipc-and
 - **No wire transport:** No request object on stdin, no response envelope on stdout.
 - **No worker-emitted receipt:** xEdit cannot emit a WIPC Receipt or assert its own invariants.
 - **No runtime protocol handshake:** `protocol_version` does not apply.
-- **Orchestrator-synthesised evidence:** The trusted orchestrator constructs argv, isolates workspace paths, bounds process execution, captures streams, measures process trees, recomputes file hashes, and validates report schemas.
+- **Strict Evidence Layer Separation:** xEdit only emits tool-level observations (`reports/validation_report.json`). The orchestrator independently verifies the run and synthesises the trusted evidence record (`logs/poc004-evidence.json`), correlating `job_id`, `executable_sha256`, `script_sha256`, `input_plugin_sha256`, `staged_plugin_sha256`, and `report_sha256`.
 
 ```text
-Orchestrator (Trusted)
+Orchestrator (Trusted Side)
   │
   ├─ [Pre-spawn verification]
-  │    ├── Executable hash == pinned hash
-  │    ├── Static script hash == pinned hash
-  │    ├── Expected report path absent (PRE_EXISTING_OUTPUT_PRESENT)
-  │    └── Input fixture SHA-256 recorded
+  │    ├── Pinned xEdit binary SHA-256 verified against configuration
+  │    ├── Pinned Pascal script SHA-256 verified against version-controlled script
+  │    ├── Source fixture SHA-256 verified identical to staged copy in data/
+  │    └── Target report path absent (PRE_EXISTING_OUTPUT_PRESENT)
   │
   ├─ [Spawn with OS Confinement]
   │    ├── Windows Job Object (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
   │    ├── shell = False
-  │    ├── Deny-by-default environment (TEMP/TMP redirected)
-  │    └── Closed argv: [exe, -sse, -autoload, -autoexit, -D:..., -P:..., -T:..., -script:...]
+  │    ├── Deny-by-default environment (TEMP/TMP redirected to temp/)
+  │    └── Closed argv: [exe, -sse, -autoload, -autoexit, -D:..., -I:..., -P:..., -S:..., -R:..., -T:..., -B:..., -C:..., -script:...]
   │
   ▼
-External Tool (Untrusted xEdit execution)
+External Tool (Untrusted xEdit Execution)
   │
-  ├── Reads: input fixture in isolated workspace data dir
-  ├── Runs: pinned static Pascal script
-  └── Writes: reports/validation_report.json + logs
+  ├── Loads: staged fixture from workspace data/ via -D: and -P:
+  ├── Executes: static script located via -S: and -script:
+  ├── Emits: tool observations to reports/validation_report.json
+  └── Emits: execution log to logs/xedit.log via -R:
   │
   ▼
 Orchestrator (Trusted Validation & Evidence Synthesis)
   │
-  ├── Enforce execution deadline & verify zero surviving descendants
-  ├── Verify input fixture SHA-256 unchanged (INPUT_HASH_MISMATCH)
-  ├── Verify no undeclared files in workspace (UNEXPECTED_OUTPUT_PRESENT)
+  ├── Enforce execution deadline & verify zero surviving descendants (Job Object)
+  ├── Verify source input/ fixture SHA-256 unchanged (INPUT_HASH_MISMATCH)
+  ├── Verify staged data/ fixture SHA-256 unchanged (INPUT_HASH_MISMATCH)
+  ├── Verify no undeclared files in workspace snapshot (UNEXPECTED_OUTPUT_PRESENT)
   ├── Verify report exists, non-empty, and fresh (EXPECTED_OUTPUT_MISSING)
   ├── Validate report against strict closed JSON Schema (POLICY_VIOLATION)
-  ├── Correlate job_id, plugin_sha256, script_sha256 (POLICY_VIOLATION)
-  └── Verify explicit completion marker (XEDIT_VALIDATION_COMPLETE_V1)
+  ├── Verify explicit completion marker in report (EXPECTED_OUTPUT_MISSING)
+  ├── Verify semantic determinism across independent workspaces (DETERMINISM_MISMATCH)
+  └── Synthesise trusted evidence envelope (logs/poc004-evidence.json)
 ```
 
 ---
 
 ## 3. Objective of POC-004
 
-To demonstrate or refute whether a user-installed copy of xEdit can be invoked as an independent, read-only, deterministic, fail-closed validator for Skyrim plugins, governed by a closed ETEC profile, without modifying original files, without escaping the workspace, and without permitting arbitrary LLM-generated code execution at runtime.
+To demonstrate or refute whether a user-installed copy of xEdit can be invoked as an independent, read-only, deterministic, fail-closed validator for Skyrim plugins, governed by a closed ETEC profile, without modifying original files, without modifying staged copies in-place, without escaping the workspace, and without permitting arbitrary LLM-generated code execution at runtime.
 
 ---
 
@@ -94,10 +97,13 @@ The canonical profile identifier is **`XEDIT_VALIDATE_PLUGIN_V1`**.
 | **Executable integrity** | SHA-256 pinned in trusted configuration; pre-spawn mismatch fails closed (`EXECUTABLE_HASH_MISMATCH`) |
 | **Executable metadata** | Informational only (read from PE headers: `FileVersion`, `ProductVersion`, `CompanyName`, `FileDescription`); never a trust gate |
 | **Validation script** | Pre-written, static, allowlisted, version-controlled, and hash-pinned; runtime LLM generation strictly prohibited |
-| **Script location** | Allowlisted static script path mapped into workspace `scripts/`; never arbitrary user path |
-| **Input fixture** | Own-authored synthetic `.esp` located in workspace `input/`; safe-name token grammar per ADR-002 |
+| **Script location** | Allowlisted static script staged in `<workspace>/scripts/` and located by xEdit via `-S:<workspace>\scripts\` |
+| **Input fixture** | Own-authored synthetic `.esp` in `<workspace>/input/`; staged read-only copy in `<workspace>/data/` |
+| **Input immutability** | Dual-path hash verification: both `input/<fixture>` and `data/<fixture>` must match pre-spawn and post-spawn |
 | **Candidate output** | Read-only validation profile; no candidate plugin modifications permitted; `candidates/` remains empty |
-| **Report output** | Exactly one machine-readable report resolved trusted-side: `reports/validation_report.json` |
+| **Tool report output** | Exactly one machine-readable JSON report emitted by the script: `reports/validation_report.json` |
+| **Tool log output** | Explicit log path directed inside workspace via `-R:<workspace>\logs\xedit.log` |
+| **Evidence envelope** | Synthesised trusted-side by orchestrator: `logs/poc004-evidence.json` correlating all run parameters |
 | **argv grammar** | Fully determined trusted-side; closed token list; no raw caller strings reach argv |
 | **`cwd`** | Derived trusted-side to workspace root; never from request or caller data |
 | **Environment** | Deny-by-default allowlist; `TEMP` and `TMP` redirected strictly to workspace `temp/` |
@@ -105,44 +111,55 @@ The canonical profile identifier is **`XEDIT_VALIDATE_PLUGIN_V1`**.
 | **Deadline** | Monotonic execution deadline (60.0 s default; configurable per fixture) plus bounded cleanup grace (5.0 s) |
 | **stdout / stderr** | Capped transfer-time readers (65 536 bytes per stream); persisted under `logs/` as untrusted evidence |
 | **OS Confinement** | Windows Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; `CREATE_SUSPENDED` assignment before resume |
+| **Determinism gate** | Two independent runs over identical input in clean workspaces must produce semantically identical reports |
 
 ---
 
 ## 5. Upstream CLI Research & Fact Classification
 
-To prevent inventing command-line flags or making unsupported architectural assumptions, upstream sources (official repository `TES5Edit/TES5Edit`, official documentation *The Tome of xEdit*, and community Delphi automation sources) were analyzed.
-
-Findings are strictly classified into:
-- **DOCUMENTED**: Directly confirmed in official upstream documentation or repository documentation.
-- **OBSERVED**: Empirically measured in this repository's environment.
-- **INFERRED**: Deduced from architecture or Delphi runtime semantics, but not yet empirically proven.
-- **NO VERIFICADO**: Critical behavioral details that cannot be verified without running xEdit.
+Upstream sources were verified directly against the official `TES5Edit/TES5Edit` repository (including `xEdit/xeInit.pas` from release branch `dev-4.1.6`), official documentation (*The Tome of xEdit*), and Delphi runtime specifications.
 
 ### 5.1 Documented Upstream Flags
 
-1. `-script:"<ScriptName>"` (or `-script:"<ScriptName.pas>"`):
-   - Executes the specified Pascal script automatically after plugins load.
-   - Upstream documentation specifies that scripts reside in the `Edit Scripts\` directory of the xEdit installation.
-2. `-autoexit`:
-   - Closes xEdit automatically once automated tasks (script, Quick Auto Clean, LODGen) complete.
-3. `-autoload`:
-   - Skips the manual module selection dialog and automatically loads plugins active in `plugins.txt` or the default load order.
-4. `-D:"<path>\"`:
-   - Overrides the Data directory. Upstream documentation notes all path switches require a trailing backslash.
-5. `-I:"<path><filename>"`:
+1. **`-S:"<path>\"`**:
+   - **Path to look for scripts** (*The Tome of xEdit* Section 2.8.1).
+   - Confirmed in upstream source (`xEdit/xeInit.pas`):
+     ```pascal
+     if not wbFindCmdLineParam('S', wbScriptsPath) then
+       wbScriptsPath := wbProgramPath + 'Edit Scripts\';
+     ```
+   - When `-S:` is passed, xEdit overrides `wbScriptsPath` to the specified directory. This enables hermetic script sourcing from `<workspace>/scripts/` without touching `<xEdit_Install_Dir>\Edit Scripts\`. Requires trailing backslash.
+2. **`-R:"<path><filename>"`**:
+   - **Custom log file destination** (*The Tome of xEdit* Section 2.8.1).
+   - Confirmed in upstream source (`xEdit/xeInit.pas`):
+     ```pascal
+     if wbFindCmdLineParam('R', s) then
+       xeLogFile := s;
+     ```
+   - Directs xEdit's internal log file to `<workspace>/logs/xedit.log`, preventing uncontained log creation.
+3. **`-script:"<ScriptName>"`** (or `-script:"<ScriptName.pas>"`):
+   - Executes the named Pascal script upon completion of module loading.
+4. **`-autoexit`**:
+   - Instructs xEdit to terminate immediately after automated tasks or script execution complete.
+5. **`-autoload`**:
+   - Skips the interactive module selection dialog and automatically loads plugins active in `plugins.txt`.
+6. **`-D:"<path>\"`**:
+   - Overrides the Data directory. Requires trailing backslash.
+7. **`-I:"<path><filename>"`**:
    - Overrides the game main INI file path.
-6. `-P:"<path><filename>"`:
+8. **`-P:"<path><filename>"`**:
    - Overrides the `plugins.txt` file path.
-7. `-T:"<path>\"`:
-   - Overrides the temporary working directory.
-8. `-C:"<path>\"`:
-   - Overrides the cache directory.
-9. `-B:"<path>\"`:
-   - Overrides the backups directory.
-10. `-R:"<path><filename>"`:
-    - Overrides the log file path.
-11. Game mode flags (`-sse`, `-tes5`, `-fo4`):
-    - Forces the specific game mode regardless of the executable filename.
+9. **`-T:"<path>\"`**:
+   - Overrides the temporary directory. Requires trailing backslash.
+10. **`-C:"<path>\"`**:
+    - Overrides the cache directory. Requires trailing backslash.
+11. **`-B:"<path>\"`**:
+    - Overrides the backups directory. Requires trailing backslash.
+12. **Game mode flags (`-sse`, `-tes5`, `-fo4`)**:
+    - Forces specific game mode regardless of the executable filename.
+13. **Pascal Script Lifecycle**:
+    - Pascal units expose `Initialize: integer;`, `Process(e: IInterface): integer;`, and `Finalize: integer;`.
+    - Can write JSON output files using `TStringList.SaveToFile`.
 
 ### 5.2 Observed Facts
 
@@ -150,36 +167,34 @@ Findings are strictly classified into:
 
 ### 5.3 Inferred Facts
 
-- That `-D:"<workspace>\data\"` together with `-P:"<workspace>\data\plugins.txt"` isolates plugin loading from the user's live Skyrim installation.
-- That xEdit exits with code `0` when `-autoexit` completes normally after script execution.
-- That Pascal scripts in xEdit can serialize structured JSON via standard `TStringList.SaveToFile` or file I/O routines.
+- That passing `-D:`, `-I:`, `-P:`, `-S:`, `-R:`, and `-T:` simultaneously completely redirects xEdit's file operations into the workspace boundary.
+- That xEdit exits with code `0` when `-autoexit` completes normally after a script finishes.
 
 ### 5.4 NO VERIFICADO (Frozen Unknowns)
 
-The following items are **explicitly unverified** and must not be assumed to pass:
+The following behavioral unknowns cannot be verified without empirical execution of xEdit:
 
 1. **Masterless Synthetic Plugin Support:**
    - Does xEdit 4.x allow opening a minimal synthetic `.esp` (containing only a TES4 header) without `Skyrim.esm` or official masters present in `-D:`? Or does it abort / popup an error dialog demanding official masters?
    - *Status:* `NO VERIFICADO`.
-2. **GUI & Dialog Suppression:**
-   - xEdit is a Delphi VCL GUI application. When launched with `-autoload -script:... -autoexit`, does it run completely silently, or does it instantiate a visible window / taskbar icon?
+2. **GUI & Modal Dialog Suppression:**
+   - xEdit is a Delphi VCL GUI application. When launched with `-autoload -script:... -autoexit`, does it instantiate a visible window?
    - Crucially: do non-fatal warnings, missing string tables, or syntax errors open modal popups (e.g. `ShowMessage`, `MessageDlg`) that block the main thread and prevent `-autoexit` until deadline timeout?
    - *Status:* `NO VERIFICADO`.
-3. **Script Sourcing & Redirection (`-S:` vs `Edit Scripts\`):**
-   - Does xEdit support an undocumented switch `-S:<path>\` to redirect the scripts directory to `workspace/scripts/`, or does `-script:` strictly require the script to reside physically within `<xEdit_Install_Dir>\Edit Scripts\`?
-   - If physically required inside the installation, running the tool without mutating the user's installation directory is an open problem that must be measured.
-   - *Status:* `NO VERIFICADO`.
-4. **Exit Codes on Failure:**
+3. **Exit Codes on Failure:**
    - What exit code does xEdit return when a script encounters an unhandled exception or calls `Exit`? Does it return a non-zero code, or does it exit 0 regardless?
    - *Status:* `NO VERIFICADO`.
-5. **`-P:` Argument Robustness:**
+4. **`-P:` Argument Hermeticism:**
    - Does xEdit strictly honor `-P:<path><filename>` across all 4.x versions, or does it attempt to fall back to `%LOCALAPPDATA%\Skyrim Special Edition\plugins.txt`?
    - *Status:* `NO VERIFICADO`.
-6. **Registry Probing & Ambient Host Leakage:**
+5. **Registry Probing & Ambient Host Leakage:**
    - Does xEdit query the Windows Registry (`HKLM\Software\Bethesda Softworks\Skyrim Special Edition` or Steam keys) even when `-D:` and `-I:` are specified on the command line?
    - *Status:* `NO VERIFICADO`.
-7. **Process Tree & Descendants on Windows:**
+6. **Process Tree & Descendants on Windows:**
    - Does xEdit spawn child helper processes or background worker threads that survive main window closure?
+   - *Status:* `NO VERIFICADO`.
+7. **External Filesystem Writes:**
+   - Does xEdit attempt to write settings, view state, or MRU lists into `%LOCALAPPDATA%` or the Windows Registry upon exiting?
    - *Status:* `NO VERIFICADO`.
 
 ---
@@ -209,11 +224,14 @@ The following items are **explicitly unverified** and must not be assumed to pas
 
 1. **Pre-written, Static, and Allowlisted:**
    - The validation script (e.g. `ValidatePluginV1.pas`) must be written, reviewed, committed to version control, and hash-pinned in the profile definition before execution.
-2. **Runtime Code Generation Prohibited:**
+2. **Hermetic Staging via `-S:`**:
+   - The script is staged into `<workspace>/scripts/ValidatePluginV1.pas` and pointed to via `-S:<workspace>\scripts\`.
+   - The user's xEdit installation directory is never modified.
+3. **Runtime Code Generation Prohibited:**
    - **Under NO circumstances may an LLM generate, mutate, or inject Pascal code at runtime.**
    - Dynamic script assembly, template expansion with untrusted tokens, and arbitrary user-supplied script paths are strictly forbidden.
    - *Development vs. Runtime distinction:* An LLM may assist human developers in authoring the static `.pas` script during offline development, but once authored, the script is static, audited, and immutable at the runtime boundary.
-3. **Cryptographic Script Hash Pinning:**
+4. **Cryptographic Script Hash Pinning:**
    - Pre-spawn check:
      ```text
      actual_script_sha256 = sha256(script_path)
@@ -223,30 +241,41 @@ The following items are **explicitly unverified** and must not be assumed to pas
 
 ---
 
-## 8. Controlled Input Fixture
+## 8. Controlled Input Fixture & Staging
 
 1. **Synthetic and Own-Authored:**
    - Fixtures used by POC-004 must be minimal, synthetic, and created specifically for testing (e.g. extending the synthetic TES4 header fixture proven in POC-002).
 2. **Zero Proprietary Material:**
    - Absolutely NO Bethesda-copyrighted records, official plugins (`Skyrim.esm`, `Update.esm`, `Dawnguard.esm`), third-party mod files, or live user Data folders may be used or committed.
-3. **Masterless Plugin Unknown:**
-   - The fixture will be a standalone synthetic `.esp` without masters.
-   - Whether xEdit permits loading a masterless plugin in headless mode without crashing is a primary hypothesis to be tested by POC-004. It is recorded as `NO VERIFICADO`.
+3. **Staging Architecture:**
+   - The original controlled fixture is placed in `<workspace>/input/<fixture_name>.esp`.
+   - A copy is staged in `<workspace>/data/<fixture_name>.esp` for xEdit's `-D:` Data directory, alongside an isolated `<workspace>/data/plugins.txt` for `-P:`.
+4. **Masterless Plugin Unknown:**
+   - Whether xEdit permits loading a masterless synthetic plugin without crashing is a primary hypothesis to be tested by POC-004. It is recorded as `NO VERIFICADO`.
 
 ---
 
-## 9. Original Input Immutability
+## 9. Input and Staged Plugin Immutability
+
+To eliminate false security where `input/` is unmodified but `data/` was mutated in-place by xEdit:
 
 1. **Pre-spawn baseline:**
-   - Orchestrator records `input_sha256_before`, file size, and modification timestamp of the input fixture.
+   - Orchestrator records SHA-256, size, and mtime of `input/<fixture_name>.esp`.
+   - Orchestrator records SHA-256, size, and mtime of `data/<fixture_name>.esp`.
+   - Invariant: `sha256(input/<fixture_name>.esp) == sha256(data/<fixture_name>.esp)`.
 2. **Post-spawn assertion:**
-   - Orchestrator recomputes `input_sha256_after` immediately following process termination and cleanup.
-3. **Pass rule:**
+   - Orchestrator recomputes hashes immediately following process termination and cleanup:
+     ```text
+     source_hash_after = sha256("input/<fixture_name>.esp")
+     staged_hash_after = sha256("data/<fixture_name>.esp")
+     ```
+3. **Pass rule (Strict Dual Immutability):**
    ```text
-   input_sha256_before == input_sha256_after
+   source_hash_before == source_hash_after
+   AND staged_hash_before == staged_hash_after
+   AND source_hash_before == staged_hash_after
    ```
-   If the hash changes: fail closed with `INPUT_HASH_MISMATCH`.
-4. Secondary invariant: file size and mtime must remain unmodified.
+   If either hash changes: fail closed with `INPUT_HASH_MISMATCH`.
 
 ---
 
@@ -256,54 +285,49 @@ Every invocation runs inside an ephemeral, dedicated workspace directory created
 
 ```text
 <workspace_root>/
-  ├── input/          # Read-only input fixture (.esp)
-  ├── data/           # Staged data folder for xEdit (-D:), contains input fixture & plugins.txt
-  ├── scripts/        # Staged allowlisted static script (.pas)
+  ├── input/          # Immutable source fixture (.esp)
+  ├── data/           # Staged data folder for xEdit (-D:), contains .esp & plugins.txt
+  ├── ini/            # Minimal dummy Skyrim.ini for xEdit (-I:)
+  ├── scripts/        # Staged allowlisted static script for xEdit (-S:)
   ├── reports/        # Target directory for validation_report.json
-  ├── logs/           # Captured stdout.log, stderr.log, xEdit logs
+  ├── logs/           # Captured stdout.log, stderr.log, xedit.log (-R:), poc004-evidence.json
+  ├── backups/        # Empty directory for xEdit (-B:)
+  ├── cache/          # Empty directory for xEdit (-C:)
   └── temp/           # Redirected TEMP / TMP directory (-T:)
 ```
 
-1. **Prohibited Paths:**
-   - xEdit must never be pointed to, read from, or write to:
-     - The live Skyrim installation directory.
-     - `%USERPROFILE%\AppData\Local\Skyrim Special Edition\` (except if unavoidable by binary design, which must fail or be recorded as an architectural limitation).
-     - The xEdit installation directory (except read-only binary execution).
-     - Arbitrary user directories.
+1. **Declared Allowed Outputs:**
+   - `reports/validation_report.json`
+   - `logs/stdout.log`
+   - `logs/stderr.log`
+   - `logs/xedit.log`
+   - `logs/poc004-evidence.json`
+   - Ephemeral scratch files strictly contained within `temp/`.
 2. **Workspace Snapshotting:**
-   - **Pre-spawn:** Recursive snapshot of all regular files in `<workspace_root>`.
-   - **Post-spawn:** Recursive snapshot of all regular files in `<workspace_root>`.
-   - The only allowed new files are:
-     - `reports/validation_report.json`
-     - `logs/stdout.log`
-     - `logs/stderr.log`
-     - Optionally declared temporary logs inside `logs/` or `temp/`.
-   - Any other file appearing in `input/`, `data/`, or root fails closed with `UNEXPECTED_OUTPUT_PRESENT`.
+   - **Pre-spawn:** Recursive regular-file snapshot of all files in `<workspace_root>`.
+   - **Post-spawn:** Recursive regular-file snapshot of all files in `<workspace_root>`.
+   - Any file appearing outside the declared allowed outputs fails closed with `UNEXPECTED_OUTPUT_PRESENT`.
 3. **External Writes:**
-   - If xEdit writes outside `<workspace_root>` (e.g. creating logs, ini files, or backups in its own folder or `%LOCALAPPDATA%`), this is recorded as an experimental risk / violation and cannot be hidden.
+   - Any file created outside `<workspace_root>` fails the run and is recorded as an isolation violation.
 
 ---
 
-## 11. Output Contract: Strict Machine-Readable Report
+## 11. Output Contract: Two-Layer Architecture
 
-The xEdit Pascal script must emit exactly one machine-readable JSON report: `reports/validation_report.json`.
+To eliminate the self-reference paradox (where a script cannot embed its own hash) and ensure clean separation of concerns:
 
-Free-form text reports, console log regex parsing, and substrings such as `"Validation Completed Successfully"` are **prohibited** as success criteria.
-
-### 11.1 JSON Schema: `XEDIT_VALIDATE_PLUGIN_V1`
+### 11.1 Layer 1: Tool-Emitted Report (`reports/validation_report.json`)
+Written by the static Pascal script upon completing inspection. It contains **only tool observations**:
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "XEditValidationReportV1",
+  "title": "XEditToolValidationReportV1",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "job_id",
     "plugin_name",
-    "plugin_sha256",
-    "script_sha256",
     "validator_status",
     "completion_marker",
     "records_inspected",
@@ -316,22 +340,9 @@ Free-form text reports, console log regex parsing, and substrings such as `"Vali
       "type": "integer",
       "const": 1
     },
-    "job_id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 128
-    },
     "plugin_name": {
       "type": "string",
       "pattern": "^[a-zA-Z0-9_-]+\\.(esp|esm|esl)$"
-    },
-    "plugin_sha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
-    "script_sha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
     },
     "validator_status": {
       "type": "string",
@@ -388,23 +399,49 @@ Free-form text reports, console log regex parsing, and substrings such as `"Vali
 }
 ```
 
+### 11.2 Layer 2: Trusted Evidence Envelope (`logs/poc004-evidence.json`)
+Constructed **trusted-side by the orchestrator** after execution. It records all cryptographic pins, correlation data, and process measurements:
+
+```json
+{
+  "schema_version": 1,
+  "job_id": "<uuid-or-token>",
+  "profile_id": "XEDIT_VALIDATE_PLUGIN_V1",
+  "executable_sha256": "<pinned_sha256>",
+  "script_sha256": "<pinned_sha256>",
+  "source_plugin_sha256": "<recomputed_sha256>",
+  "staged_plugin_sha256": "<recomputed_sha256>",
+  "report_sha256": "<sha256_of_validation_report_json>",
+  "tool_report": { "...embedded or referenced contents of validation_report.json..." },
+  "process_metrics": {
+    "exit_code": 0,
+    "elapsed_seconds": 1.25,
+    "stdout_bytes": 1024,
+    "stderr_bytes": 0,
+    "descendants_observed": 0,
+    "descendants_alive_after_cleanup": 0
+  },
+  "verdict": "SUCCESS"
+}
+```
+
 ---
 
 ## 12. Completion Evidence & Independent Correlation
 
-An external process exiting with code `0` is **not evidence that the script ran or completed**. xEdit may exit 0 on empty tasks, aborts, or early GUI closes.
+An external process exiting with code `0` is **not evidence that the script ran or completed**.
 
-To prove completion and prevent spoofing or stale reuse, the orchestrator enforces:
+To prove completion:
 1. **Explicit Completion Marker:**
-   - The report must contain `completion_marker: "XEDIT_VALIDATION_COMPLETE_V1"`.
-   - Written only by the script's `Finalize` block after all records are traversed.
-   - Missing or altered marker fails closed with `EXPECTED_OUTPUT_MISSING` or `POLICY_VIOLATION`.
-2. **Cryptographic and Job Correlation:**
-   - The orchestrator independently verifies:
-     - `report["job_id"] == orchestrator.current_job_id`
-     - `report["plugin_sha256"] == orchestrator.input_sha256_before`
-     - `report["script_sha256"] == orchestrator.pinned_script_sha256`
-   - Any mismatch indicates stale report reuse, directory collision, or script tampering, failing closed with `POLICY_VIOLATION`.
+   - The tool report must contain `completion_marker: "XEDIT_VALIDATION_COMPLETE_V1"`.
+   - Written exclusively by the Pascal script's `Finalize` block after all records are traversed.
+   - Missing, empty, or altered marker fails closed with `EXPECTED_OUTPUT_MISSING` or `POLICY_VIOLATION`.
+2. **Trusted-Side Cryptographic Correlation:**
+   - The orchestrator asserts:
+     - `tool_report.plugin_name` matches the expected fixture name.
+     - `staged_plugin_sha256` matches `source_plugin_sha256`.
+     - `report_sha256` recorded in the evidence envelope matches the recomputed SHA-256 of the generated report.
+     - `script_sha256` recorded in the envelope matches the pre-spawn pinned script hash.
 
 ---
 
@@ -421,6 +458,8 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
   "-D:<RESOLVED_WORKSPACE_DATA_DIR>\",
   "-I:<RESOLVED_WORKSPACE_INI_PATH>",
   "-P:<RESOLVED_WORKSPACE_PLUGINS_TXT_PATH>",
+  "-S:<RESOLVED_WORKSPACE_SCRIPTS_DIR>\",
+  "-R:<RESOLVED_WORKSPACE_LOGS_DIR>\xedit.log",
   "-T:<RESOLVED_WORKSPACE_TEMP_DIR>\",
   "-B:<RESOLVED_WORKSPACE_BACKUPS_DIR>\",
   "-C:<RESOLVED_WORKSPACE_CACHE_DIR>\",
@@ -430,6 +469,7 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
 
 - Every token is validated against safe-name grammar (`^[a-zA-Z0-9_.-]+$`).
 - All path parameters are resolved to absolute paths strictly within `<workspace_root>`.
+- Path switches (`-D:`, `-S:`, `-T:`, `-B:`, `-C:`) terminate with a trailing backslash per upstream xEdit requirements.
 - `shell=False` is strictly enforced.
 - Command-line chaining (`&`, `|`, `;`, `>`, `<`), cmd.exe wrappers, and PowerShell invocations are prohibited.
 
@@ -455,22 +495,19 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
 
 ## 15. Ambient Host State Analysis
 
-Because xEdit was built for interactive mod management, it may probe ambient host locations. The following matrix audits every known ambient touchpoint:
-
 | Host Resource | Classification | Mitigation Strategy | Pre-registration Risk Status |
 |---|---|---|---|
-| **Windows Registry** (`HKLM\Software\Bethesda Softworks\Skyrim Special Edition`) | `AVOIDABLE` via `-D:` | Provide explicit `-D:` pointing to workspace data folder. | `NO VERIFICADO` — must test if xEdit still queries registry if game path is specified. |
+| **Script Sourcing** (`Edit Scripts\`) | `AVOIDABLE` via `-S:` | Provide `-S:<workspace>\scripts\` pointing to workspace. | Upstream verified in `xeInit.pas`. Eliminates installation write risk. |
+| **Log Output** (`xEdit_log.txt`) | `AVOIDABLE` via `-R:` | Provide `-R:<workspace>\logs\xedit.log`. | Upstream verified in `xeInit.pas`. Eliminates installation write risk. |
+| **Windows Registry** (`HKLM\Software\Bethesda Softworks\Skyrim Special Edition`) | `AVOIDABLE` via `-D:` | Provide explicit `-D:` pointing to workspace data folder. | `NO VERIFICADO` — test if xEdit queries registry if game path is specified. |
 | **Active Load Order** (`%LOCALAPPDATA%\Skyrim Special Edition\plugins.txt`) | `AVOIDABLE` via `-P:` | Provide isolated `plugins.txt` via `-P:` containing only fixture. | `NO VERIFICADO` — verify xEdit does not read default AppData path. |
 | **Game INI Files** (`%USERPROFILE%\Documents\My Games\Skyrim Special Edition\`) | `AVOIDABLE` via `-I:` | Provide dummy minimal INI in workspace via `-I:`. | `NO VERIFICADO` — verify xEdit does not probe Documents. |
 | **Temporary Files** (`%TEMP%`, `%TMP%`) | `AVOIDABLE` via `-T:` + env | Set `-T:` to workspace `temp/` and override `TEMP`/`TMP` in process environment. | `NO VERIFICADO` — verify no files leak to system temp. |
-| **xEdit Installation Directory** (`Edit Scripts\`, `xEdit_log.txt`) | `POTENTIALLY REQUIRED` | Script may need staging in `Edit Scripts\` if `-S:` is unsupported. | `NO VERIFICADO` — high architectural risk; writing into install dir violates read-only isolation. |
 | **Interactive Desktop Session (GDI/User32)** | `REQUIRED` | xEdit is a Delphi VCL application requiring a Win32 GUI subsystem. Cannot run in headless Linux containers or Windows Server Core without desktop session. | Confirmed limitation of xEdit; documented as architectural constraint. |
 
 ---
 
 ## 16. Negative Test Matrix (Pre-registered Fixtures)
-
-The subsequent experiment must execute and verify the following 10 negative/edge fixtures:
 
 | Case | Condition | Injected Fault | Expected Outcome Code | Required Evidence |
 |---|---|---|---|---|
@@ -481,9 +518,9 @@ The subsequent experiment must execute and verify the following 10 negative/edge
 | **E** | Pre-existing Report | Stale `validation_report.json` placed before spawn | `PRE_EXISTING_OUTPUT_PRESENT` | Pre-spawn check fails; zero processes spawned |
 | **F** | Forced Timeout | Execution deadline set to 0.1 s | `PROCESS_TIMEOUT` | Process tree terminated; `descendants_alive == []` |
 | **G** | Unexpected Output | Extra undeclared file generated in workspace | `UNEXPECTED_OUTPUT_PRESENT` | Snapshot diff catches extraneous file; run rejected |
-| **H** | Input Mutation | Script or tool modifies input `.esp` bytes | `INPUT_HASH_MISMATCH` | Post-spawn hash differs from pre-spawn; run rejected |
+| **H** | Input Mutation | Script or tool modifies staged `.esp` bytes | `INPUT_HASH_MISMATCH` | Post-spawn hash differs from pre-spawn; run rejected |
 | **I** | Missing Completion Marker | Report written without completion marker | `EXPECTED_OUTPUT_MISSING` / `POLICY_VIOLATION` | Validator rejects report; run rejected |
-| **J** | Corrupted Correlation | Report with mismatched `job_id` or plugin hash | `POLICY_VIOLATION` | Orchestrator correlation gate rejects report |
+| **J** | Divergent Repeat Run | Two runs on identical input produce divergent reports | `DETERMINISM_MISMATCH` | Semantic comparison between Run A and Run B detects divergence |
 
 ---
 
@@ -503,10 +540,10 @@ POC-004 adopts the ADR-004 ETEC partitioned error taxonomy:
 - `PRE_EXISTING_OUTPUT_PRESENT`: Report already existed before spawn.
 - `EXPECTED_OUTPUT_MISSING`: Exit code zero but report absent, empty, or lacking completion marker.
 - `OUTPUT_HASH_MISMATCH`: Recorded report hash does not match independent recomputation.
-- `INPUT_HASH_MISMATCH`: Input fixture hash altered across the run.
+- `INPUT_HASH_MISMATCH`: Source or staged input fixture hash altered across the run.
 - `UNEXPECTED_OUTPUT_PRESENT`: Undeclared files detected in the workspace snapshot.
 - `TOOL_DIAGNOSTICS_REJECTED`: Reserved if tool diagnostics violate acceptability rules.
-- `DETERMINISM_MISMATCH`: Two runs on identical input produce divergent reports.
+- `DETERMINISM_MISMATCH`: Two runs on identical input produce divergent semantic reports.
 - `EXECUTABLE_HASH_MISMATCH`: Executable hash differs from pinned trusted configuration.
 - `DESCENDANT_PROCESS_SURVIVED`: Process tree cleanup failed; descendants outlived job close.
 
@@ -527,22 +564,21 @@ SUCCESS =
     AND argv_is_closed
     AND shell_is_false
     AND pre_existing_output_absent
-    AND input_hash_unchanged
+    AND source_input_hash_unchanged
+    AND staged_plugin_hash_unchanged
     AND process_exit_zero
     AND report_exists
     AND report_nonempty
     AND report_fresh
     AND report_schema_valid
     AND completion_marker_valid
-    AND job_correlation_valid
-    AND plugin_hash_correlation_valid
-    AND script_hash_correlation_valid
+    AND report_hash_recomputed
     AND no_unexpected_outputs
     AND stdout_bounded
     AND stderr_bounded
     AND deadline_respected
     AND no_surviving_descendants
-    AND independent_validation_passes
+    AND validation_is_deterministic
 ```
 
 - No "warning but success".
@@ -553,27 +589,28 @@ SUCCESS =
 
 ## 19. Numbered Frozen Acceptance Criteria
 
-The following 17 criteria are permanently frozen:
+The following 18 criteria are permanently frozen:
 
 | # | Criterion | Pass Rule | Failure Code |
 |---|---|---|---|
-| **1** | **Fixed argv grammar** | All argv elements are generated trusted-side by profile; no caller strings; safe-name tokens only | `POLICY_VIOLATION` |
+| **1** | **Fixed argv grammar** | All argv elements are generated trusted-side by profile (including `-S:` and `-R:`); no caller strings; safe-name tokens only | `POLICY_VIOLATION` |
 | **2** | **No shell execution** | Spawn uses `shell=False`; no `cmd.exe` or `powershell.exe` in process tree | `POLICY_VIOLATION` |
 | **3** | **Executable integrity** | SHA-256 of xEdit binary matches pinned hash before spawn | `EXECUTABLE_HASH_MISMATCH` |
 | **4** | **Script integrity** | SHA-256 of static Pascal script matches pinned hash before spawn | `POLICY_VIOLATION` |
 | **5** | **No runtime code generation** | Script is pre-written and static; zero dynamic code generation from model output | `POLICY_VIOLATION` |
 | **6** | **Workspace containment** | All paths resolve strictly inside `<workspace_root>`; no parent directory traversal | `WORKSPACE_VIOLATION` |
-| **7** | **Input immutability** | SHA-256 of input plugin fixture is identical before spawn and after termination | `INPUT_HASH_MISMATCH` |
+| **7** | **Input and staged immutability** | SHA-256 of both source fixture (`input/`) and staged copy (`data/`) are identical before spawn and after termination | `INPUT_HASH_MISMATCH` |
 | **8** | **Output freshness & existence** | Target report absent before spawn; exists after exit code 0 with size > 0 bytes | `PRE_EXISTING_OUTPUT_PRESENT` / `EXPECTED_OUTPUT_MISSING` |
-| **9** | **Strict report schema** | Report validates strictly against JSON Schema `XEDIT_VALIDATE_PLUGIN_V1` | `POLICY_VIOLATION` |
+| **9** | **Strict report schema** | Report validates strictly against JSON Schema `XEditToolValidationReportV1` | `POLICY_VIOLATION` |
 | **10** | **Explicit completion marker** | Report contains `completion_marker: "XEDIT_VALIDATION_COMPLETE_V1"` | `EXPECTED_OUTPUT_MISSING` / `POLICY_VIOLATION` |
-| **11** | **Trusted-side correlation** | `job_id`, `plugin_sha256`, and `script_sha256` in report match orchestrator records | `POLICY_VIOLATION` |
+| **11** | **Trusted evidence envelope** | Orchestrator synthesises evidence envelope correlating `job_id`, `executable_sha256`, `script_sha256`, `plugin_sha256`, and recomputed `report_sha256` | `POLICY_VIOLATION` / `OUTPUT_HASH_MISMATCH` |
 | **12** | **Bounded stream capture** | stdout and stderr capped during transfer (<= 64 KiB); saved under `logs/` | `OUTPUT_LIMIT_EXCEEDED` |
 | **13** | **Monotonic deadline** | Execution exceeding deadline budget is killed within grace period | `PROCESS_TIMEOUT` |
 | **14** | **Process tree cleanup** | Windows Job Object confinement enforced; zero descendants outlive cleanup | `DESCENDANT_PROCESS_SURVIVED` / `INTERNAL_ERROR` |
-| **15** | **No unexpected outputs** | Workspace snapshot post-spawn contains zero undeclared files | `UNEXPECTED_OUTPUT_PRESENT` |
+| **15** | **No unexpected outputs** | Workspace snapshot post-spawn contains zero undeclared files (authorized set: report, stdout, stderr, xedit.log, evidence envelope) | `UNEXPECTED_OUTPUT_PRESENT` |
 | **16** | **Fail-closed negative handling** | All negative fixtures (B through J) fail closed with their expected error codes | `PROCESS_FAILED`, `POLICY_VIOLATION`, etc. |
 | **17** | **Redistributable fixture legality** | Synthetic own-authored fixture only; zero copyrighted Bethesda assets committed | `POLICY_VIOLATION` |
+| **18** | **Semantic determinism** | Two independent runs on identical input in separate clean workspaces yield semantically identical validation reports | `DETERMINISM_MISMATCH` |
 
 ---
 
@@ -607,13 +644,13 @@ The following 17 criteria are permanently frozen:
 | **T4** | Command injection | Special characters (`&`, `|`, `;`) in plugin name | Safe-name token validation, `shell=False`, no cmd.exe | Structured argv array log |
 | **T5** | Workspace traversal | Relative paths escaping sandbox (`..\..\`) | Post-resolve containment check strictly inside `<workspace_root>` | Normalized path assertion |
 | **T6** | Stale report replay | Reusing report from earlier run | Pre-spawn absence check; monotonic mtime verification | Pre-spawn directory listing log |
-| **T7** | Report spoofing | Malicious plugin forging a valid report | Trusted-side correlation of `job_id` and `plugin_sha256` | Recomputed SHA-256 comparison |
+| **T7** | Report spoofing | Malicious plugin forging a valid report | Trusted-side correlation of `job_id`, `plugin_sha256`, and `report_sha256` | Recomputed SHA-256 comparison |
 | **T8** | Partial / torn write | Process killed while writing JSON | Strict JSON schema parsing and EOF validation | Schema validator output log |
 | **T9** | Runaway hang | xEdit modal dialog or infinite loop | Monotonic deadline + Windows Job Object termination | Process timeout timestamp log |
 | **T10** | Surviving processes | Background workers or crash daemons surviving | Windows Job Object `KILL_ON_JOB_CLOSE` + Toolhelp32 audit | Post-cleanup process list (empty) |
 | **T11** | Workspace pollution | Undocumented cache, ini, or backup dumps | Pre/post recursive workspace snapshot comparison | Workspace diff log (empty) |
-| **T12** | Input corruption | Tool overwrites input fixture in-place | Pre/post SHA-256 comparison of input fixture | Input hash match log |
+| **T12** | Input corruption | Tool overwrites input or staged fixture in-place | Dual-path pre/post SHA-256 comparison of input and staged fixture | Input hash match log |
 | **T13** | Stream denial of service | Massive output flooding stdout/stderr | Transfer-time stream cap at 64 KiB | Captured byte count log |
 | **T14** | Vacuous exit-0 | xEdit exits 0 without running script | Requirement of explicit completion marker in report | Parsed completion marker log |
 | **T15** | Silent script abort | Script throws runtime error before finalize | Missing report or missing completion marker fails closed | `EXPECTED_OUTPUT_MISSING` assertion |
-| **T16** | Ambient state leak | xEdit modifying live game Data or AppData | Redirected flags (`-D:`, `-P:`, `-T:`) and isolation audit | Host filesystem state verification |
+| **T16** | Ambient state leak | xEdit modifying live game Data or AppData | Redirected flags (`-D:`, `-P:`, `-S:`, `-R:`, `-T:`) and isolation audit | Host filesystem state verification |
