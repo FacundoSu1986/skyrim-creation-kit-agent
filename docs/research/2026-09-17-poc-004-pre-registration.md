@@ -281,7 +281,7 @@ To eliminate false security where `input/` is unmodified but `data/` was mutated
 
 ---
 
-## 10. Workspace Contract & Delta Audit
+## 10. Workspace Contract & Dual Delta Audit
 
 Every invocation runs inside an ephemeral, dedicated workspace directory created trusted-side:
 
@@ -298,30 +298,61 @@ Every invocation runs inside an ephemeral, dedicated workspace directory created
   └── temp/           # Redirected TEMP / TMP directory (-T:)
 ```
 
-1. **Declared Allowed Workspace Mutations:**
-   The post-spawn workspace state is evaluated against the pre-spawn state using an exact delta audit:
-   ```text
-   delta = compare(pre_spawn_snapshot, post_spawn_snapshot)
-   ```
-   Execution passes if and only if every entry in `delta` belongs strictly to the declared mutation set:
-   - **Allowed Created Files:**
-     - `reports/validation_report.json`
-     - `logs/stdout.log`
-     - `logs/stderr.log`
-     - `logs/xedit.log`
-     - `logs/poc004-evidence.json`
-     - Scratch files strictly contained within `temp/`.
-   - **Allowed Modified Files:**
-     - `logs/stdout.log`, `logs/stderr.log`, `logs/xedit.log`, `logs/poc004-evidence.json`.
-     - Scratch files strictly contained within `temp/`.
-     - *No file in `input/`, `data/`, `ini/`, `scripts/`, or `reports/` (once written) may be modified.*
-   - **Allowed Deleted Files:**
-     - Ephemeral scratch files strictly contained within `temp/`.
-     - *No pre-existing file in `input/`, `data/`, `ini/`, `scripts/`, or `logs/` may be deleted.*
-2. **Failure Rule:**
-   - Any regular file created, modified, or deleted outside the declared mutation set fails closed with `UNEXPECTED_OUTPUT_PRESENT` (or `INPUT_HASH_MISMATCH` if input/staged plugins were modified).
-3. **External Writes:**
-   - Any file created or modified outside `<workspace_root>` fails the run and is recorded as an isolation violation.
+### 10.1 Declared Allowed Workspace Mutations
+
+The post-spawn workspace state is evaluated against the pre-spawn state using an exact delta audit:
+```text
+workspace_delta = compare(pre_spawn_workspace_snapshot, post_spawn_workspace_snapshot)
+```
+Execution passes if and only if every entry in `workspace_delta` belongs strictly to the declared mutation set:
+- **Allowed Created Files:**
+  - `reports/validation_report.json`
+  - `logs/stdout.log`
+  - `logs/stderr.log`
+  - `logs/xedit.log`
+  - `logs/poc004-evidence.json`
+  - Scratch files strictly contained within `temp/`.
+- **Allowed Modified Files:**
+  - `logs/stdout.log`, `logs/stderr.log`, `logs/xedit.log`, `logs/poc004-evidence.json`.
+  - Scratch files strictly contained within `temp/`.
+  - *No file in `input/`, `data/`, `ini/`, `scripts/`, or `reports/` (once written) may be modified.*
+- **Allowed Deleted Files:**
+  - Ephemeral scratch files strictly contained within `temp/`.
+  - *No pre-existing file in `input/`, `data/`, `ini/`, `scripts/`, or `logs/` may be deleted.*
+
+Failure Rule: Any regular file created, modified, or deleted outside the declared mutation set fails closed with `UNEXPECTED_OUTPUT_PRESENT` (or `INPUT_HASH_MISMATCH` if input/staged plugins were modified).
+
+### 10.2 Ambient Host State Audit (Outside Workspace)
+
+A workspace-only delta audit is inherently blind to external writes (e.g. into the xEdit install directory, user AppData, Documents, or the system registry). To detect external side effects, the orchestrator audits pre-registered host surfaces:
+
+1. **Monitored Ambient Host Surfaces:**
+   - **xEdit Installation Directory:** `<xedit_install_dir>` (specifically verifying `Edit Scripts\`, default log locations, and root binary directory).
+   - **Skyrim Special Edition Local AppData:** `%LOCALAPPDATA%\Skyrim Special Edition\` (`plugins.txt`, `loadorder.txt`, `DLCList.txt`).
+   - **Skyrim Special Edition Documents:** `%USERPROFILE%\Documents\My Games\Skyrim Special Edition\` (`Skyrim.ini`, `SkyrimPrefs.ini`, `SkyrimCustom.ini`, logs).
+   - **System Temporary Root:** `%TEMP%` and `%TMP%` (verifying no leaked scratch files outside `<workspace_root>/temp/`).
+   - **Windows Registry Keys:**
+     - `HKCU\Software\TES5Edit` (xEdit UI state, MRU, window geometry, and preferences).
+     - `HKLM\Software\Bethesda Softworks\Skyrim Special Edition` (game installation path probes).
+
+2. **Audit Mechanism:**
+   - **Pre-spawn baseline:** Orchestrator captures recursive filesystem metadata (path existence, file size, SHA-256, mtime) and registry key/value snapshots across all five monitored surfaces.
+   - **Post-spawn assertion:** Immediately following process termination and cleanup, orchestrator re-scans the monitored surfaces:
+     ```text
+     host_delta = compare(pre_spawn_host_snapshot, post_spawn_host_snapshot)
+     ```
+   - **Pass Rule:** `host_delta` MUST be strictly empty (zero created, modified, or deleted files, directories, keys, or values):
+     ```text
+     monitored_host_state_unchanged := len(host_delta.created) == 0
+                                       AND len(host_delta.modified) == 0
+                                       AND len(host_delta.deleted) == 0
+     ```
+   - Any detected mutation outside `<workspace_root>` fails closed with `POLICY_VIOLATION`.
+
+3. **Critical Confinement Clarification (No False Claims):**
+   - **No mutations on monitored surfaces != OS_SANDBOX verified.**
+   - Userspace snapshotting of five known host surfaces detects whether xEdit adhered to its redirection flags (`-D:`, `-P:`, `-S:`, `-R:`, `-T:`, `-I:`). It does **not** provide kernel-enforced containment or prevent unmonitored disk writes.
+   - Process confinement in POC-004 is strictly at the **process-tree level** via Windows Job Objects (`KILL_ON_JOB_CLOSE`); known outputs are redirected via CLI switches; general OS-level sandbox isolation remains **`NO VERIFICADO`**.
 
 ---
 
@@ -438,6 +469,34 @@ Constructed **trusted-side by the orchestrator** after execution. It records all
 }
 ```
 
+### 11.3 Semantic Determinism Projection (`DETERMINISM_PROJECTION_V1`)
+
+To eliminate ambiguity in what constitutes "semantically identical" output across repeated runs, determinism is formally evaluated over a frozen projection function that extracts normative validation outcomes and eliminates benign non-deterministic variance (e.g. wall-clock timestamps or transient performance metrics):
+
+```text
+DETERMINISM_PROJECTION_V1(R) = {
+  schema_version: R.schema_version,
+  plugin_name: R.plugin_name,
+  validator_status: R.validator_status,
+  completion_marker: R.completion_marker,
+  records_inspected: R.records_inspected,
+  errors_detected: R.errors_detected,
+  warnings_detected: R.warnings_detected,
+  canonical_diagnostics: canonical_diagnostics(R.diagnostics)
+}
+```
+
+where `canonical_diagnostics` is defined by sorting all diagnostics by a deterministic tuple key:
+```text
+canonical_diagnostics = sort(R.diagnostics, key=(severity, code, record_formid, record_signature, message))
+```
+
+Semantic determinism between two runs on identical inputs across separate clean workspaces is satisfied if and only if:
+```text
+DETERMINISM_PROJECTION_V1(run_A.tool_report) == DETERMINISM_PROJECTION_V1(run_B.tool_report)
+```
+Any divergence between projections fails closed with `DETERMINISM_MISMATCH`. Transient metrics in the evidence envelope (e.g. `job_id`, `elapsed_seconds`, `stdout_bytes`, `report_sha256`) are excluded from `DETERMINISM_PROJECTION_V1` because they are expected to vary between runs; determinism is evaluated strictly on the semantic tool validation output.
+
 ---
 
 ## 12. Completion Evidence & Independent Correlation
@@ -523,6 +582,7 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
 | **Script Sourcing** (`Edit Scripts\`) | `AVOIDABLE` via `-S:` | Provide `-S:<workspace>\scripts\` pointing to workspace. | Upstream verified in `xeInit.pas`. Eliminates installation write risk. |
 | **Log Output** (`xEdit_log.txt`) | `AVOIDABLE` via `-R:` | Provide `-R:<workspace>\logs\xedit.log`. | Upstream verified in `xeInit.pas`. Eliminates installation write risk. |
 | **Windows Registry** (`HKLM\Software\Bethesda Softworks\Skyrim Special Edition`) | `AVOIDABLE` via `-D:` | Provide explicit `-D:` pointing to workspace data folder. | `NO VERIFICADO` — test if xEdit queries registry if game path is specified. |
+| **Windows Registry** (`HKCU\Software\TES5Edit`) | `POTENTIAL LEAK` | Monitored via Criterion 20 host snapshot; detect UI/state persistence. | `NO VERIFICADO` — verify xEdit does not mutate user registry during automated runs. |
 | **Active Load Order** (`%LOCALAPPDATA%\Skyrim Special Edition\plugins.txt`) | `AVOIDABLE` via `-P:` | Provide isolated `plugins.txt` via `-P:` containing only fixture. | `NO VERIFICADO` — verify xEdit does not read default AppData path. |
 | **Game INI Files** (`%USERPROFILE%\Documents\My Games\Skyrim Special Edition\`) | `AVOIDABLE` via `-I:` | Provide dummy minimal INI in workspace via `-I:`. | `NO VERIFICADO` — verify xEdit does not probe Documents. |
 | **Temporary Files** (`%TEMP%`, `%TMP%`) | `AVOIDABLE` via `-T:` + env | Set `-T:` to workspace `temp/` and override `TEMP`/`TMP` in process environment. | `NO VERIFICADO` — verify no files leak to system temp. |
@@ -543,7 +603,8 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
 | **G** | Unexpected Output | Extra undeclared file generated in workspace | `UNEXPECTED_OUTPUT_PRESENT` | Delta audit catches extraneous file; run rejected |
 | **H** | Input Mutation | Script or tool modifies staged `.esp` bytes | `INPUT_HASH_MISMATCH` | Post-spawn hash differs from pre-spawn; run rejected |
 | **I** | Missing Completion Marker | Report written without completion marker | `EXPECTED_OUTPUT_MISSING` / `POLICY_VIOLATION` | Validator rejects report; run rejected |
-| **J** | Divergent Repeat Run | Two runs on identical input produce divergent reports | `DETERMINISM_MISMATCH` | Semantic comparison between Run A and Run B detects divergence |
+| **J** | Divergent Repeat Run | Two runs on identical input produce divergent reports | `DETERMINISM_MISMATCH` | Semantic comparison detects divergence under `DETERMINISM_PROJECTION_V1` |
+| **K** | Ambient Host Mutation | File or registry entry mutated on monitored host surface | `POLICY_VIOLATION` | Host snapshot delta audit catches mutation; run rejected |
 
 ---
 
@@ -598,6 +659,7 @@ SUCCESS =
     AND completion_marker_valid
     AND report_hash_recomputed
     AND workspace_delta_is_authorized
+    AND monitored_host_state_unchanged
     AND stdout_bounded
     AND stderr_bounded
     AND deadline_respected
@@ -606,7 +668,9 @@ SUCCESS =
 ```
 
 - `validator_status_is_valid := tool_report.validator_status == "VALID"`.
-- `workspace_delta_is_authorized := delta(pre, post) subset of declared mutation set`.
+- `workspace_delta_is_authorized := delta(pre_spawn_workspace, post_spawn_workspace) subset of declared mutation set`.
+- `monitored_host_state_unchanged := delta(pre_spawn_host, post_spawn_host) == empty`.
+- `validation_is_deterministic := DETERMINISM_PROJECTION_V1(run_A.tool_report) == DETERMINISM_PROJECTION_V1(run_B.tool_report)`.
 - No "warning but success".
 - No "partial pass".
 - Any failed term immediately yields `FAIL` with its specific taxonomy error code.
@@ -615,7 +679,7 @@ SUCCESS =
 
 ## 19. Numbered Frozen Acceptance Criteria
 
-The following 19 criteria are permanently frozen:
+The following 20 criteria are permanently frozen:
 
 | # | Criterion | Pass Rule | Failure Code |
 |---|---|---|---|
@@ -635,9 +699,10 @@ The following 19 criteria are permanently frozen:
 | **14** | **Monotonic deadline** | Execution exceeding deadline budget is killed within grace period | `PROCESS_TIMEOUT` |
 | **15** | **Process tree cleanup** | Windows Job Object confinement enforced; zero descendants outlive cleanup | `DESCENDANT_PROCESS_SURVIVED` / `INTERNAL_ERROR` |
 | **16** | **No unexpected workspace mutations** | Delta between pre-spawn and post-spawn snapshots contains zero undeclared file creations, modifications, or deletions | `UNEXPECTED_OUTPUT_PRESENT` |
-| **17** | **Fail-closed negative handling** | All negative fixtures (B through J) fail closed with their expected error codes | `PROCESS_FAILED`, `POLICY_VIOLATION`, etc. |
+| **17** | **Fail-closed negative handling** | All negative fixtures (B through K) fail closed with their expected error codes | `PROCESS_FAILED`, `POLICY_VIOLATION`, etc. |
 | **18** | **Redistributable fixture legality** | Synthetic own-authored fixture only; zero copyrighted Bethesda assets committed | `POLICY_VIOLATION` |
-| **19** | **Semantic determinism** | Two independent runs on identical input in separate clean workspaces yield semantically identical validation reports | `DETERMINISM_MISMATCH` |
+| **19** | **Semantic determinism** | Two independent runs on identical input in separate clean workspaces yield identical projections under `DETERMINISM_PROJECTION_V1`: `DETERMINISM_PROJECTION_V1(run_A.tool_report) == DETERMINISM_PROJECTION_V1(run_B.tool_report)` | `DETERMINISM_MISMATCH` |
+| **20** | **Ambient host state audit** | Pre-spawn and post-spawn snapshots across pre-registered host surfaces (xEdit install dir, `%LOCALAPPDATA%`, `Documents`, system `TEMP` root, and registry keys `HKCU\Software\TES5Edit`, `HKLM\...\Skyrim Special Edition`) show zero mutations | `POLICY_VIOLATION` |
 
 ---
 
@@ -653,10 +718,10 @@ The following 19 criteria are permanently frozen:
 
 ### 20.2 Explicit Non-Claims
 - **LOAD SUCCESS != PLUGIN CORRECT:** That xEdit loads a plugin without crashing does not prove that the plugin is semantically correct, bug-free, or functional in the Skyrim game engine.
+- **NO MUTATIONS ON MONITORED SURFACES != OS_SANDBOX VERIFIED:** Clean snapshots of monitored host surfaces confirm adherence to CLI redirection flags, but do NOT constitute kernel-enforced OS sandbox isolation. Confinement is strictly at the process-tree level via Windows Job Objects (`KILL_ON_JOB_CLOSE`); general `OS_SANDBOX` remains strictly **`NO VERIFICADO`**.
 - Does not authorize runtime execution of xEdit in this PR.
 - Does not authorize dynamic Pascal generation.
 - Does not claim that xEdit can run in headless Linux CI.
-- Does not claim that `OS_SANDBOX` is verified (`OS_SANDBOX` remains `NO VERIFICADO`).
 - Does not alter the repository status of POC-004: it remains strictly **`NO VERIFICADO`**.
 
 ---
@@ -680,4 +745,4 @@ The following 19 criteria are permanently frozen:
 | **T13** | Stream denial of service | Massive output flooding stdout/stderr | Transfer-time stream cap at 64 KiB | Captured byte count log |
 | **T14** | Vacuous exit-0 | xEdit exits 0 without running script | Requirement of explicit completion marker and `validator_status == "VALID"` | Parsed marker & status log |
 | **T15** | Silent script abort | Script throws runtime error before finalize | Missing report or missing completion marker fails closed | `EXPECTED_OUTPUT_MISSING` assertion |
-| **T16** | Ambient state leak | xEdit modifying live game Data or AppData | Redirected flags (`-D:`, `-P:`, `-S:`, `-R:`, `-T:`) and isolation audit | Host filesystem state verification |
+| **T16** | Ambient state leak | xEdit modifying live game Data, AppData, Documents, system Temp, or registry | Redirected flags (`-D:`, `-P:`, `-S:`, `-R:`, `-T:`, `-I:`, `-B:`, `-C:`), environment variable overrides, and pre/post snapshot delta audit of monitored host surfaces (Criterion 20) | Host filesystem and registry snapshot delta audit log showing zero created/modified/deleted entities across monitored paths |
