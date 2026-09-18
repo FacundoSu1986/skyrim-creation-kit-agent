@@ -27,7 +27,7 @@ c206dd7d4b2083a125c870a5604564428cf38abc59d9472d77e9c381d2dfaad4  ./docs/researc
 ee8dfd21f9323ffe71ddb8c4102fce13ca43976c0126edcb6a171218b28b1a96  ./docs/research/problem-definition.md
 04d86c772914919e1837cf7b2f5f54ec9e1f71af8eeba420797aa9dea59ac6e8  ./docs/research/source-manifest.md
 56fa87f5cb237abb43d249938dd89759c9e337d6e7a73958804571e8b39c337e  ./docs/research/threat-model-preliminary.md
-3e5491f3c5874debbaa9102bf5935904896b336f2972f977951dd4df430a5645  ./docs/roadmap.md
+5623f06df94ea57bfb1aaaa44d4e4b1649aebde90b081f659a6415eae6f7708b  ./docs/roadmap.md
 6f3612f0b5e8d1350c403551e263c7a9528750deda3c85979a4a9d35e62b5ac9  ./docs/status.md
 839b3769c6266e0963bbdd502bb09cab631851638569cadba4460c4d5aef2533  ./pyproject.toml
 886dbf87e0b5e30c772211f90598e7ac8211bcbdafe9bcf20f7914f9305c0fa1  ./research/poc_002/README.md
@@ -63,7 +63,8 @@ bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b  ./public/licen
 fdc6c435731d1b287f1e0c84da4f35dc7ce50d9edfae409d2b15cc0c260d0979  ./public/licenses/.gitattributes
 4e748950e13db771d2246f1eecff3d9a1661a9ad22daddb194a17cd19a0d8590  ./docs/research/2026-09-01-poc-003-pre-registration.md
 2db88da9f7db16898fb7a084307869cf5fd59e2d5218e19bf0923247ebb10f91  ./docs/research/2026-09-06-poc-003-results.md
-62afb305f0f165191ede07541de383429e81c85cba4d7400b102b729b7d7f67c  ./docs/research/experiments.md
+5454818377ba433ef519cd3761f60bad790d192cb392480e83ad7614c97d07cb  ./docs/research/2026-09-17-poc-004-pre-registration.md
+8e821ee09991309fdbe796f06f96771d7846ae12031d3197bfdc72d0c2bc4b74  ./docs/research/experiments.md
 5d0546d72c2c0b4d89450a8a0ad53da87a511a3e40b8d0d0e07aa01a59c5f762  ./research/poc_003/README.md
 7c17efb934c90ce8601450758a5d4ac4a66cdab8f2b8d5a5c607fa37e4082fcf  ./research/poc_003/__init__.py
 879d0f15928c089d995250249f45e8bd065442a80e6bf04b105762730c48b66a  ./research/poc_003/criteria.py

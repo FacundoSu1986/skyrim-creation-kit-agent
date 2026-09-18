@@ -50,9 +50,9 @@ Because mandatory criteria failed, status remains `NO VERIFICADO` and `DETERMINI
 
 ### POC-004 — xEdit allowlisted validator
 
-**Status:** `NO VERIFICADO` (next relevant experiment).
+**Status:** `NO VERIFICADO` (criteria pre-registered; experiment not yet implemented or executed).
 
-Verify a user-installed xEdit invocation using an allowlisted/hash-pinned pre-written script with `-script -autoexit`, explicit completion evidence, bounded timeout, immutable originals, and independent validation (no generated Pascal).
+Verify a user-installed xEdit invocation using an allowlisted/hash-pinned pre-written script with `-script -autoexit`, explicit completion evidence, bounded timeout, immutable originals, and independent validation (no generated Pascal). Acceptance criteria pre-registered (2026-09-17) in [POC-004 pre-registration](research/2026-09-17-poc-004-pre-registration.md) under profile `XEDIT_VALIDATE_PLUGIN_V1` governed by [ADR-004](adr/ADR-004-external-tool-execution-contract.md) (ACCEPTED, ETEC contract class).
 
 ### POC-IPC-001 — isolated worker protocol
 

@@ -55,7 +55,7 @@ See the identifier rule below.
 
 **Status:** `NO VERIFICADO`
 
-Use a user-installed xEdit copy, an allowlisted/hash-pinned reporting script and an explicit completion marker. Missing marker is failure. Originals remain untouched.
+Use a user-installed xEdit copy, an allowlisted/hash-pinned reporting script and an explicit completion marker. Missing marker is failure. Originals remain untouched. Acceptance criteria pre-registered (2026-09-17) in [POC-004 pre-registration](2026-09-17-poc-004-pre-registration.md) under profile `XEDIT_VALIDATE_PLUGIN_V1` governed by [ADR-004](../adr/ADR-004-external-tool-execution-contract.md) (ACCEPTED, ETEC contract class). Experiment designed and frozen; not yet implemented or executed.
 
 ## EXP-CK-CLI — enumerate actual Creation Kit flags
 
