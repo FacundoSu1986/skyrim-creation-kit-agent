@@ -39,7 +39,7 @@ xEdit is **not** a worker under [ADR-002](../adr/ADR-002-isolated-worker-ipc-and
 - **No wire transport:** No request object on stdin, no response envelope on stdout.
 - **No worker-emitted receipt:** xEdit cannot emit a WIPC Receipt or assert its own invariants.
 - **No runtime protocol handshake:** `protocol_version` does not apply.
-- **Strict Evidence Layer Separation:** xEdit only emits tool-level observations (`reports/validation_report.json`). The orchestrator independently verifies the run and synthesises the trusted evidence record (`logs/poc004-evidence.json`), correlating `job_id`, `executable_sha256`, `script_sha256`, `input_plugin_sha256`, `staged_plugin_sha256`, and `report_sha256`.
+- **Strict Evidence Layer Separation:** xEdit only emits tool-level observations (`reports/validation_report.json`). The orchestrator independently verifies the run and synthesises the trusted evidence record (`logs/poc004-evidence.json`), correlating `job_id`, `executable_sha256`, `script_sha256`, `source_plugin_sha256`, `staged_plugin_sha256`, and `report_sha256`.
 
 ```text
 Orchestrator (Trusted Side)
@@ -70,9 +70,10 @@ Orchestrator (Trusted Validation & Evidence Synthesis)
   ├── Enforce execution deadline & verify zero surviving descendants (Job Object)
   ├── Verify source input/ fixture SHA-256 unchanged (INPUT_HASH_MISMATCH)
   ├── Verify staged data/ fixture SHA-256 unchanged (INPUT_HASH_MISMATCH)
-  ├── Verify no undeclared files in workspace snapshot (UNEXPECTED_OUTPUT_PRESENT)
+  ├── Verify workspace delta contains only declared creations/mutations (UNEXPECTED_OUTPUT_PRESENT)
   ├── Verify report exists, non-empty, and fresh (EXPECTED_OUTPUT_MISSING)
   ├── Validate report against strict closed JSON Schema (POLICY_VIOLATION)
+  ├── Validate tool outcome: validator_status == "VALID" (TOOL_DIAGNOSTICS_REJECTED)
   ├── Verify explicit completion marker in report (EXPECTED_OUTPUT_MISSING)
   ├── Verify semantic determinism across independent workspaces (DETERMINISM_MISMATCH)
   └── Synthesise trusted evidence envelope (logs/poc004-evidence.json)
@@ -99,12 +100,13 @@ The canonical profile identifier is **`XEDIT_VALIDATE_PLUGIN_V1`**.
 | **Validation script** | Pre-written, static, allowlisted, version-controlled, and hash-pinned; runtime LLM generation strictly prohibited |
 | **Script location** | Allowlisted static script staged in `<workspace>/scripts/` and located by xEdit via `-S:<workspace>\scripts\` |
 | **Input fixture** | Own-authored synthetic `.esp` in `<workspace>/input/`; staged read-only copy in `<workspace>/data/` |
-| **Input immutability** | Dual-path hash verification: both `input/<fixture>` and `data/<fixture>` must match pre-spawn and post-spawn |
+| **Input immutability** | Dual-path hash verification: both `source_plugin_sha256` (`input/`) and `staged_plugin_sha256` (`data/`) must match pre-spawn and post-spawn |
 | **Candidate output** | Read-only validation profile; no candidate plugin modifications permitted; `candidates/` remains empty |
 | **Tool report output** | Exactly one machine-readable JSON report emitted by the script: `reports/validation_report.json` |
+| **Tool outcome requirement**| `validator_status` must equal `"VALID"`; `"INVALID"` or `"ERROR"` fails closed (`TOOL_DIAGNOSTICS_REJECTED`) |
 | **Tool log output** | Explicit log path directed inside workspace via `-R:<workspace>\logs\xedit.log` |
 | **Evidence envelope** | Synthesised trusted-side by orchestrator: `logs/poc004-evidence.json` correlating all run parameters |
-| **argv grammar** | Fully determined trusted-side; closed token list; no raw caller strings reach argv |
+| **argv grammar** | Fully determined trusted-side; closed token list; caller-derived tokens validated via safe-name grammar; paths resolved trusted-side |
 | **`cwd`** | Derived trusted-side to workspace root; never from request or caller data |
 | **Environment** | Deny-by-default allowlist; `TEMP` and `TMP` redirected strictly to workspace `temp/` |
 | **Shell** | `shell=False` strictly; no `cmd.exe` or `powershell.exe` in process tree |
@@ -260,26 +262,26 @@ The following behavioral unknowns cannot be verified without empirical execution
 To eliminate false security where `input/` is unmodified but `data/` was mutated in-place by xEdit:
 
 1. **Pre-spawn baseline:**
-   - Orchestrator records SHA-256, size, and mtime of `input/<fixture_name>.esp`.
-   - Orchestrator records SHA-256, size, and mtime of `data/<fixture_name>.esp`.
-   - Invariant: `sha256(input/<fixture_name>.esp) == sha256(data/<fixture_name>.esp)`.
+   - Orchestrator records SHA-256 (`source_plugin_sha256_before`), size, and mtime of `input/<fixture_name>.esp`.
+   - Orchestrator records SHA-256 (`staged_plugin_sha256_before`), size, and mtime of `data/<fixture_name>.esp`.
+   - Invariant: `source_plugin_sha256_before == staged_plugin_sha256_before`.
 2. **Post-spawn assertion:**
    - Orchestrator recomputes hashes immediately following process termination and cleanup:
      ```text
-     source_hash_after = sha256("input/<fixture_name>.esp")
-     staged_hash_after = sha256("data/<fixture_name>.esp")
+     source_plugin_sha256_after = sha256("input/<fixture_name>.esp")
+     staged_plugin_sha256_after = sha256("data/<fixture_name>.esp")
      ```
 3. **Pass rule (Strict Dual Immutability):**
    ```text
-   source_hash_before == source_hash_after
-   AND staged_hash_before == staged_hash_after
-   AND source_hash_before == staged_hash_after
+   source_plugin_sha256_before == source_plugin_sha256_after
+   AND staged_plugin_sha256_before == staged_plugin_sha256_after
+   AND source_plugin_sha256_before == staged_plugin_sha256_after
    ```
    If either hash changes: fail closed with `INPUT_HASH_MISMATCH`.
 
 ---
 
-## 10. Workspace Contract
+## 10. Workspace Contract & Delta Audit
 
 Every invocation runs inside an ephemeral, dedicated workspace directory created trusted-side:
 
@@ -296,19 +298,30 @@ Every invocation runs inside an ephemeral, dedicated workspace directory created
   └── temp/           # Redirected TEMP / TMP directory (-T:)
 ```
 
-1. **Declared Allowed Outputs:**
-   - `reports/validation_report.json`
-   - `logs/stdout.log`
-   - `logs/stderr.log`
-   - `logs/xedit.log`
-   - `logs/poc004-evidence.json`
-   - Ephemeral scratch files strictly contained within `temp/`.
-2. **Workspace Snapshotting:**
-   - **Pre-spawn:** Recursive regular-file snapshot of all files in `<workspace_root>`.
-   - **Post-spawn:** Recursive regular-file snapshot of all files in `<workspace_root>`.
-   - Any file appearing outside the declared allowed outputs fails closed with `UNEXPECTED_OUTPUT_PRESENT`.
+1. **Declared Allowed Workspace Mutations:**
+   The post-spawn workspace state is evaluated against the pre-spawn state using an exact delta audit:
+   ```text
+   delta = compare(pre_spawn_snapshot, post_spawn_snapshot)
+   ```
+   Execution passes if and only if every entry in `delta` belongs strictly to the declared mutation set:
+   - **Allowed Created Files:**
+     - `reports/validation_report.json`
+     - `logs/stdout.log`
+     - `logs/stderr.log`
+     - `logs/xedit.log`
+     - `logs/poc004-evidence.json`
+     - Scratch files strictly contained within `temp/`.
+   - **Allowed Modified Files:**
+     - `logs/stdout.log`, `logs/stderr.log`, `logs/xedit.log`, `logs/poc004-evidence.json`.
+     - Scratch files strictly contained within `temp/`.
+     - *No file in `input/`, `data/`, `ini/`, `scripts/`, or `reports/` (once written) may be modified.*
+   - **Allowed Deleted Files:**
+     - Ephemeral scratch files strictly contained within `temp/`.
+     - *No pre-existing file in `input/`, `data/`, `ini/`, `scripts/`, or `logs/` may be deleted.*
+2. **Failure Rule:**
+   - Any regular file created, modified, or deleted outside the declared mutation set fails closed with `UNEXPECTED_OUTPUT_PRESENT` (or `INPUT_HASH_MISMATCH` if input/staged plugins were modified).
 3. **External Writes:**
-   - Any file created outside `<workspace_root>` fails the run and is recorded as an isolation violation.
+   - Any file created or modified outside `<workspace_root>` fails the run and is recorded as an isolation violation.
 
 ---
 
@@ -431,12 +444,15 @@ Constructed **trusted-side by the orchestrator** after execution. It records all
 
 An external process exiting with code `0` is **not evidence that the script ran or completed**.
 
-To prove completion:
+To prove completion and correctness:
 1. **Explicit Completion Marker:**
    - The tool report must contain `completion_marker: "XEDIT_VALIDATION_COMPLETE_V1"`.
    - Written exclusively by the Pascal script's `Finalize` block after all records are traversed.
    - Missing, empty, or altered marker fails closed with `EXPECTED_OUTPUT_MISSING` or `POLICY_VIOLATION`.
-2. **Trusted-Side Cryptographic Correlation:**
+2. **Tool Status Gate:**
+   - For an expected-valid run, `tool_report.validator_status` must equal `"VALID"`.
+   - An outcome of `"INVALID"` or `"ERROR"` fails closed with `TOOL_DIAGNOSTICS_REJECTED`.
+3. **Trusted-Side Cryptographic Correlation:**
    - The orchestrator asserts:
      - `tool_report.plugin_name` matches the expected fixture name.
      - `staged_plugin_sha256` matches `source_plugin_sha256`.
@@ -447,7 +463,7 @@ To prove completion:
 
 ## 13. Closed argv Grammar
 
-No caller-provided string reaches argv. The argv list is constructed strictly trusted-side:
+No caller-provided string reaches argv. The argv list is constructed strictly trusted-side under a partitioned validation model:
 
 ```text
 [
@@ -467,11 +483,18 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
 ]
 ```
 
-- Every token is validated against safe-name grammar (`^[a-zA-Z0-9_.-]+$`).
-- All path parameters are resolved to absolute paths strictly within `<workspace_root>`.
-- Path switches (`-D:`, `-S:`, `-T:`, `-B:`, `-C:`) terminate with a trailing backslash per upstream xEdit requirements.
-- `shell=False` is strictly enforced.
-- Command-line chaining (`&`, `|`, `;`, `>`, `<`), cmd.exe wrappers, and PowerShell invocations are prohibited.
+1. **Caller-Derived Name Components:**
+   - Any token derived from caller or request names (e.g. plugin filename, script identifier) must strictly satisfy safe-name grammar: `^[a-zA-Z0-9_.-]+$`.
+   - Slashes, backslashes, path traversal (`..`), spaces, and shell metacharacters are rejected pre-spawn.
+2. **Fixed Switches:**
+   - Fixed switches (`-sse`, `-autoload`, `-autoexit`, `-script:`) are exact closed-profile string literals defined trusted-side. No caller modification is permitted.
+3. **Resolved Path Switches:**
+   - Path arguments (`-D:...`, `-I:...`, `-P:...`, `-S:...`, `-R:...`, `-T:...`, `-B:...`, `-C:...`) are constructed trusted-side by resolving relative workspace tokens to absolute paths strictly within `<workspace_root>`.
+   - Any path resolving outside `<workspace_root>` fails closed with `WORKSPACE_VIOLATION`.
+   - Directory switches terminate with a trailing backslash per upstream xEdit requirements.
+4. **Execution Environment:**
+   - `shell=False` is strictly enforced.
+   - Command chaining (`&`, `|`, `;`, `>`, `<`), cmd.exe wrappers, and PowerShell invocations are prohibited.
 
 ---
 
@@ -512,12 +535,12 @@ No caller-provided string reaches argv. The argv list is constructed strictly tr
 | Case | Condition | Injected Fault | Expected Outcome Code | Required Evidence |
 |---|---|---|---|---|
 | **A** | Baseline Positive | Valid minimal synthetic TES4 `.esp` | `SUCCESS` | Report exists, valid schema, `validator_status: "VALID"`, marker present, hashes match |
-| **B** | Malformed Plugin | Truncated file or corrupted header | `PROCESS_FAILED` or `POLICY_VIOLATION` | xEdit exits non-zero or report records `validator_status: "INVALID"` |
+| **B** | Malformed Plugin | Truncated file or corrupted header | `PROCESS_FAILED` or `TOOL_DIAGNOSTICS_REJECTED` | xEdit exits non-zero or report records `validator_status: "INVALID"` |
 | **C** | Wrong Script Hash | Tampered or modified Pascal script | `POLICY_VIOLATION` | Pre-spawn check fails; zero processes spawned |
 | **D** | Wrong Executable Hash | Tampered xEdit binary or incorrect pin | `EXECUTABLE_HASH_MISMATCH` | Pre-spawn check fails; zero processes spawned |
 | **E** | Pre-existing Report | Stale `validation_report.json` placed before spawn | `PRE_EXISTING_OUTPUT_PRESENT` | Pre-spawn check fails; zero processes spawned |
 | **F** | Forced Timeout | Execution deadline set to 0.1 s | `PROCESS_TIMEOUT` | Process tree terminated; `descendants_alive == []` |
-| **G** | Unexpected Output | Extra undeclared file generated in workspace | `UNEXPECTED_OUTPUT_PRESENT` | Snapshot diff catches extraneous file; run rejected |
+| **G** | Unexpected Output | Extra undeclared file generated in workspace | `UNEXPECTED_OUTPUT_PRESENT` | Delta audit catches extraneous file; run rejected |
 | **H** | Input Mutation | Script or tool modifies staged `.esp` bytes | `INPUT_HASH_MISMATCH` | Post-spawn hash differs from pre-spawn; run rejected |
 | **I** | Missing Completion Marker | Report written without completion marker | `EXPECTED_OUTPUT_MISSING` / `POLICY_VIOLATION` | Validator rejects report; run rejected |
 | **J** | Divergent Repeat Run | Two runs on identical input produce divergent reports | `DETERMINISM_MISMATCH` | Semantic comparison between Run A and Run B detects divergence |
@@ -540,9 +563,9 @@ POC-004 adopts the ADR-004 ETEC partitioned error taxonomy:
 - `PRE_EXISTING_OUTPUT_PRESENT`: Report already existed before spawn.
 - `EXPECTED_OUTPUT_MISSING`: Exit code zero but report absent, empty, or lacking completion marker.
 - `OUTPUT_HASH_MISMATCH`: Recorded report hash does not match independent recomputation.
-- `INPUT_HASH_MISMATCH`: Source or staged input fixture hash altered across the run.
-- `UNEXPECTED_OUTPUT_PRESENT`: Undeclared files detected in the workspace snapshot.
-- `TOOL_DIAGNOSTICS_REJECTED`: Reserved if tool diagnostics violate acceptability rules.
+- `INPUT_HASH_MISMATCH`: `source_plugin_sha256` or `staged_plugin_sha256` altered across the run.
+- `UNEXPECTED_OUTPUT_PRESENT`: Undeclared regular files created, modified, or deleted in workspace delta.
+- `TOOL_DIAGNOSTICS_REJECTED`: `tool_report.validator_status != "VALID"` on expected-valid run.
 - `DETERMINISM_MISMATCH`: Two runs on identical input produce divergent semantic reports.
 - `EXECUTABLE_HASH_MISMATCH`: Executable hash differs from pinned trusted configuration.
 - `DESCENDANT_PROCESS_SURVIVED`: Process tree cleanup failed; descendants outlived job close.
@@ -564,16 +587,17 @@ SUCCESS =
     AND argv_is_closed
     AND shell_is_false
     AND pre_existing_output_absent
-    AND source_input_hash_unchanged
+    AND source_plugin_hash_unchanged
     AND staged_plugin_hash_unchanged
     AND process_exit_zero
     AND report_exists
     AND report_nonempty
     AND report_fresh
     AND report_schema_valid
+    AND validator_status_is_valid
     AND completion_marker_valid
     AND report_hash_recomputed
-    AND no_unexpected_outputs
+    AND workspace_delta_is_authorized
     AND stdout_bounded
     AND stderr_bounded
     AND deadline_respected
@@ -581,6 +605,8 @@ SUCCESS =
     AND validation_is_deterministic
 ```
 
+- `validator_status_is_valid := tool_report.validator_status == "VALID"`.
+- `workspace_delta_is_authorized := delta(pre, post) subset of declared mutation set`.
 - No "warning but success".
 - No "partial pass".
 - Any failed term immediately yields `FAIL` with its specific taxonomy error code.
@@ -589,11 +615,11 @@ SUCCESS =
 
 ## 19. Numbered Frozen Acceptance Criteria
 
-The following 18 criteria are permanently frozen:
+The following 19 criteria are permanently frozen:
 
 | # | Criterion | Pass Rule | Failure Code |
 |---|---|---|---|
-| **1** | **Fixed argv grammar** | All argv elements are generated trusted-side by profile (including `-S:` and `-R:`); no caller strings; safe-name tokens only | `POLICY_VIOLATION` |
+| **1** | **Fixed argv grammar** | All argv elements generated trusted-side by profile (including `-S:` and `-R:`); caller-derived tokens adhere to safe-name grammar; fixed switches are literals; path switches resolve inside workspace | `POLICY_VIOLATION` |
 | **2** | **No shell execution** | Spawn uses `shell=False`; no `cmd.exe` or `powershell.exe` in process tree | `POLICY_VIOLATION` |
 | **3** | **Executable integrity** | SHA-256 of xEdit binary matches pinned hash before spawn | `EXECUTABLE_HASH_MISMATCH` |
 | **4** | **Script integrity** | SHA-256 of static Pascal script matches pinned hash before spawn | `POLICY_VIOLATION` |
@@ -602,15 +628,16 @@ The following 18 criteria are permanently frozen:
 | **7** | **Input and staged immutability** | SHA-256 of both source fixture (`input/`) and staged copy (`data/`) are identical before spawn and after termination | `INPUT_HASH_MISMATCH` |
 | **8** | **Output freshness & existence** | Target report absent before spawn; exists after exit code 0 with size > 0 bytes | `PRE_EXISTING_OUTPUT_PRESENT` / `EXPECTED_OUTPUT_MISSING` |
 | **9** | **Strict report schema** | Report validates strictly against JSON Schema `XEditToolValidationReportV1` | `POLICY_VIOLATION` |
-| **10** | **Explicit completion marker** | Report contains `completion_marker: "XEDIT_VALIDATION_COMPLETE_V1"` | `EXPECTED_OUTPUT_MISSING` / `POLICY_VIOLATION` |
-| **11** | **Trusted evidence envelope** | Orchestrator synthesises evidence envelope correlating `job_id`, `executable_sha256`, `script_sha256`, `plugin_sha256`, and recomputed `report_sha256` | `POLICY_VIOLATION` / `OUTPUT_HASH_MISMATCH` |
-| **12** | **Bounded stream capture** | stdout and stderr capped during transfer (<= 64 KiB); saved under `logs/` | `OUTPUT_LIMIT_EXCEEDED` |
-| **13** | **Monotonic deadline** | Execution exceeding deadline budget is killed within grace period | `PROCESS_TIMEOUT` |
-| **14** | **Process tree cleanup** | Windows Job Object confinement enforced; zero descendants outlive cleanup | `DESCENDANT_PROCESS_SURVIVED` / `INTERNAL_ERROR` |
-| **15** | **No unexpected outputs** | Workspace snapshot post-spawn contains zero undeclared files (authorized set: report, stdout, stderr, xedit.log, evidence envelope) | `UNEXPECTED_OUTPUT_PRESENT` |
-| **16** | **Fail-closed negative handling** | All negative fixtures (B through J) fail closed with their expected error codes | `PROCESS_FAILED`, `POLICY_VIOLATION`, etc. |
-| **17** | **Redistributable fixture legality** | Synthetic own-authored fixture only; zero copyrighted Bethesda assets committed | `POLICY_VIOLATION` |
-| **18** | **Semantic determinism** | Two independent runs on identical input in separate clean workspaces yield semantically identical validation reports | `DETERMINISM_MISMATCH` |
+| **10** | **Valid tool outcome status** | Report explicitly asserts `validator_status == "VALID"`; `"INVALID"` or `"ERROR"` fails closed on expected-valid runs | `TOOL_DIAGNOSTICS_REJECTED` |
+| **11** | **Explicit completion marker** | Report contains `completion_marker: "XEDIT_VALIDATION_COMPLETE_V1"` | `EXPECTED_OUTPUT_MISSING` / `POLICY_VIOLATION` |
+| **12** | **Trusted evidence envelope** | Orchestrator synthesises evidence envelope correlating `job_id`, `executable_sha256`, `script_sha256`, `source_plugin_sha256`, `staged_plugin_sha256`, and recomputed `report_sha256` | `POLICY_VIOLATION` / `OUTPUT_HASH_MISMATCH` |
+| **13** | **Bounded stream capture** | stdout and stderr capped during transfer (<= 64 KiB); saved under `logs/` | `OUTPUT_LIMIT_EXCEEDED` |
+| **14** | **Monotonic deadline** | Execution exceeding deadline budget is killed within grace period | `PROCESS_TIMEOUT` |
+| **15** | **Process tree cleanup** | Windows Job Object confinement enforced; zero descendants outlive cleanup | `DESCENDANT_PROCESS_SURVIVED` / `INTERNAL_ERROR` |
+| **16** | **No unexpected workspace mutations** | Delta between pre-spawn and post-spawn snapshots contains zero undeclared file creations, modifications, or deletions | `UNEXPECTED_OUTPUT_PRESENT` |
+| **17** | **Fail-closed negative handling** | All negative fixtures (B through J) fail closed with their expected error codes | `PROCESS_FAILED`, `POLICY_VIOLATION`, etc. |
+| **18** | **Redistributable fixture legality** | Synthetic own-authored fixture only; zero copyrighted Bethesda assets committed | `POLICY_VIOLATION` |
+| **19** | **Semantic determinism** | Two independent runs on identical input in separate clean workspaces yield semantically identical validation reports | `DETERMINISM_MISMATCH` |
 
 ---
 
@@ -644,13 +671,13 @@ The following 18 criteria are permanently frozen:
 | **T4** | Command injection | Special characters (`&`, `|`, `;`) in plugin name | Safe-name token validation, `shell=False`, no cmd.exe | Structured argv array log |
 | **T5** | Workspace traversal | Relative paths escaping sandbox (`..\..\`) | Post-resolve containment check strictly inside `<workspace_root>` | Normalized path assertion |
 | **T6** | Stale report replay | Reusing report from earlier run | Pre-spawn absence check; monotonic mtime verification | Pre-spawn directory listing log |
-| **T7** | Report spoofing | Malicious plugin forging a valid report | Trusted-side correlation of `job_id`, `plugin_sha256`, and `report_sha256` | Recomputed SHA-256 comparison |
+| **T7** | Report spoofing | Malicious plugin forging a valid report | Trusted-side correlation of `job_id`, `source_plugin_sha256`, and `report_sha256` | Recomputed SHA-256 comparison |
 | **T8** | Partial / torn write | Process killed while writing JSON | Strict JSON schema parsing and EOF validation | Schema validator output log |
 | **T9** | Runaway hang | xEdit modal dialog or infinite loop | Monotonic deadline + Windows Job Object termination | Process timeout timestamp log |
 | **T10** | Surviving processes | Background workers or crash daemons surviving | Windows Job Object `KILL_ON_JOB_CLOSE` + Toolhelp32 audit | Post-cleanup process list (empty) |
-| **T11** | Workspace pollution | Undocumented cache, ini, or backup dumps | Pre/post recursive workspace snapshot comparison | Workspace diff log (empty) |
-| **T12** | Input corruption | Tool overwrites input or staged fixture in-place | Dual-path pre/post SHA-256 comparison of input and staged fixture | Input hash match log |
+| **T11** | Workspace pollution | Undocumented cache, ini, or backup dumps | Pre/post delta snapshot comparison for undeclared mutations | Workspace delta audit log |
+| **T12** | Input corruption | Tool overwrites input or staged fixture in-place | Dual-path pre/post SHA-256 comparison of input and staged fixture | Dual input hash match log |
 | **T13** | Stream denial of service | Massive output flooding stdout/stderr | Transfer-time stream cap at 64 KiB | Captured byte count log |
-| **T14** | Vacuous exit-0 | xEdit exits 0 without running script | Requirement of explicit completion marker in report | Parsed completion marker log |
+| **T14** | Vacuous exit-0 | xEdit exits 0 without running script | Requirement of explicit completion marker and `validator_status == "VALID"` | Parsed marker & status log |
 | **T15** | Silent script abort | Script throws runtime error before finalize | Missing report or missing completion marker fails closed | `EXPECTED_OUTPUT_MISSING` assertion |
 | **T16** | Ambient state leak | xEdit modifying live game Data or AppData | Redirected flags (`-D:`, `-P:`, `-S:`, `-R:`, `-T:`) and isolation audit | Host filesystem state verification |
