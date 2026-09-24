@@ -43,7 +43,7 @@ export const gateRows = [
       "POC-002 synthetic TES4 header parse. Executed and passed: 44/44 tests, evidence E2_REOPENED_ASSERTIONS_PASS on the synthetic fixture (initial validated baseline: 43 tests). POC-001 (read-only CK window inspect) remains designed-only, BLOQUEADO outside a Windows CK machine.",
     status: "VERIFICADO",
     experimentNeeded:
-      "Done for POC-002 (research/poc_002/). Next executable proofs: POC-003 and POC-004 on a Windows runner with legal tool installs.",
+      "Done for POC-002 (research/poc_002/) and POC-IPC-001 (research/poc_ipc_001/), both PASS. POC-003 was executed on a Windows host with a hash-pinned local compiler and did NOT pass (13/15 mandatory criteria; criteria 12 and 14 failed) — see docs/research/2026-09-06-poc-003-results.md. Next executable proof: POC-004 (allowlisted xEdit -script -autoexit) on a Windows runner with a user-installed xEdit.",
   },
   {
     question: "How do we avoid corruption?",

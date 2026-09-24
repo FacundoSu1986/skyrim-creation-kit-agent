@@ -9,11 +9,13 @@ export default async function ExperimentsPage() {
 
   return (
     <SiteShell activeHref="/experiments">
-      <p className="kicker">Designed, not executed</p>
+      <p className="kicker">Evidence-gated, partly executed</p>
       <h1 className="mt-3 text-5xl leading-none">Experiments and findings</h1>
       <p className="lede mt-5">
-        No Creation Kit, xEdit, or PapyrusCompiler binary was run in this environment. These cards
-        are protocols.
+        Two executable proofs have been run and passed their gates (POC-002, POC-IPC-001); one
+        was run and failed two mandatory criteria (POC-003). The remaining cards are protocols,
+        not results. No Creation Kit, xEdit, or PapyrusCompiler binary is committed here, and CI
+        never runs one.
       </p>
       <div className="section-gap">
         {experiments.map((row) => (

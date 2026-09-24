@@ -1,0 +1,59 @@
+name: Integrity and quality gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    name: Manifest coverage (pin perimeter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      # sha256sum -c can only verify rows that exist. A new file inside the
+      # declared perimeter that was never pinned passes it silently -- that is
+      # the PR #15 failure mode recorded in CONTRIBUTING.md. This step closes
+      # it by comparing the perimeter against the manifest.
+      - name: Verify manifest coverage of the pin perimeter
+        run: python3 tools/check_manifest_coverage.py --check
+      # The gate is inside the perimeter (tools/**), so its own hash is pinned by
+      # the same rule it enforces: weakening it shows up as a pinned-baseline
+      # change rather than a quiet edit.
+      - name: Verify pinned hashes
+        run: sha256sum -c MANIFEST.sha256
+
+  quality:
+    name: Static analysis ratchet / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      # ruff and mypy are declared in pyproject but were never executed, so the
+      # declared tooling contract was unverified. The ratchet fails only on debt
+      # beyond tools/quality-baseline.txt; recorded debt is grandfathered so
+      # pinned research baselines are not churned for style.
+      # Linux-only on purpose: on Windows `ctypes.WinDLL` resolves, so the
+      # Windows run would report a smaller finding count than the baseline and
+      # compare apples to oranges. The Windows behaviour is covered by the
+      # POC-003 and POC-IPC workflow matrices.
+      - name: Install analyzers
+        run: python -m pip install --no-input "ruff>=0.6,<0.17" "mypy>=1.11,<3"
+      - name: Ruff + mypy ratchet
+        run: python3 tools/quality_ratchet.py --check

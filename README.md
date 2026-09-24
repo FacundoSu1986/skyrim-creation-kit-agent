@@ -37,9 +37,14 @@ is not itself an evidence level (`E0`–`E5`). POC-002 is `PASS` with evidence
 ```text
 docs/
   adr/                     Architecture decisions
-  research/                Gate-1 research archive
+  research/                Gate-1 research archive (+ viability review, 2026-09-24)
 research/
   poc_002/                 Validated synthetic TES4 inspection POC
+  poc_003/                 Executed PapyrusCompiler harness (NO VERIFICADO: 13/15 criteria)
+  poc_ipc_001/             Validated isolated-worker IPC POC
+tools/
+  check_manifest_coverage.py  Pin-perimeter coverage gate for MANIFEST.sha256
+  quality_ratchet.py          ruff+mypy debt ratchet (+ tools/quality-baseline.txt)
 src/                       Discovery Desk research UI (Next.js) — see below; NOT the agent runtime
 .github/workflows/          Reproducible validation
 ```
@@ -134,7 +139,14 @@ VIABLE WITH LIMITATIONS
 
 Most record-level operations can plausibly avoid Creation Kit, but several CK-exclusive or high-risk areas remain unresolved: FaceGen, navmesh, Render Window placement, lip generation, some complex quest/alias semantics, and runtime semantic correctness.
 
-The research archive is under [`docs/research/`](docs/research/).
+The research archive is under [`docs/research/`](docs/research/). A 2026-09-24 re-review of the
+same question — including what has since shipped elsewhere — is in
+[`docs/research/2026-09-24-viability-and-improvement-review.md`](docs/research/2026-09-24-viability-and-improvement-review.md).
+
+Two mechanical gates back the claims above (see
+[`.github/workflows/governance.yml`](.github/workflows/governance.yml)): the manifest must cover
+its whole declared perimeter, and static-analysis debt may only shrink. Test counts are copied
+from runner output, never typed by hand.
 
 ## Experiment roadmap
 

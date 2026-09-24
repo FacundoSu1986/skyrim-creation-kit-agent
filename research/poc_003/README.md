@@ -6,7 +6,10 @@ the criteria pre-registered in
 [2026-09-01-poc-003-pre-registration.md](../../docs/research/2026-09-01-poc-003-pre-registration.md).
 
 Result of the recorded run: [2026-09-06-poc-003-results.md](../../docs/research/2026-09-06-poc-003-results.md).
-**POC-003 is not `PASS`** — criterion 14 (determinism) failed.
+**POC-003 is not `PASS`** — 13 of 15 mandatory criteria passed and two failed:
+criterion 12 (`UNEXPECTED_OUTPUT_PRESENT`: an interrupted run leaves an undeclared
+`candidates/<token>.pas` behind) and criterion 14 (`DETERMINISM_MISMATCH`: repeated
+compilations produce byte-different `.pex` artifacts).
 
 ## What this is not
 
@@ -55,6 +58,12 @@ the repository:
 
 ```bash
 # hermetic unit suite (no compiler required, CI-runnable)
+# Windows only for three of its modules: test_probe, test_proctree and
+# test_runner import ctypes.WinDLL at module scope, so off Windows they fail to
+# import -- the run reports "Ran 64 tests ... FAILED (errors=3)", i.e. 61 real
+# tests plus 3 loader errors, and the other 41 never execute. CI runs this suite
+# on windows-latest, where all 105 run. A Linux run is not evidence about
+# POC-003 in either direction.
 python -m unittest discover -s research/poc_003/tests
 
 # the real experiment (requires the local compiler)
