@@ -1,0 +1,25 @@
+# Static-analysis debt ledger for `ruff` + `mypy` over research/ and tools/.
+# Format: <path>	<tool>:<rule>	<count>   (counts are per path, line numbers excluded
+# so that unrelated edits cannot silently re-key a finding).
+# Analyzers: ruff==0.16.9 mypy==2.3.1
+# Rules: ruff select = E4,E7,E9,F,B (bug-shaped only); mypy = [tool.mypy] in pyproject.toml.
+# This file is inside the pin perimeter: relaxing it is a reviewable act.
+research/poc_002/orchestrator.py	ruff:F401	2
+research/poc_002/synthetic_tes4.py	ruff:F541	1
+research/poc_003/criteria.py	ruff:F401	1
+research/poc_003/jobobject.py	mypy:attr-defined	4
+research/poc_003/proctree.py	mypy:attr-defined	2
+research/poc_003/run_experiment.py	mypy:attr-defined	2
+research/poc_003/runner.py	mypy:arg-type	1
+research/poc_003/runner.py	mypy:call-overload	4
+research/poc_003/tests/_fake.py	ruff:F401	3
+research/poc_003/tests/test_criteria.py	ruff:F401	1
+research/poc_003/tests/test_probe.py	ruff:F401	1
+research/poc_003/workspace.py	ruff:B007	1
+research/poc_ipc_001/orchestrator.py	mypy:attr-defined	4
+research/poc_ipc_001/orchestrator.py	mypy:call-overload	1
+research/poc_ipc_001/schemas.py	ruff:F401	1
+research/poc_ipc_001/synthetic_operation.py	ruff:F401	2
+research/poc_ipc_001/synthetic_operation.py	ruff:F811	2
+research/poc_ipc_001/tests/test_orchestrator.py	ruff:F401	1
+research/poc_ipc_001/tests/test_protocol.py	ruff:F401	1

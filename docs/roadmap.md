@@ -62,6 +62,48 @@ Verify a user-installed xEdit invocation using an allowlisted/hash-pinned pre-wr
 
 **Status:** **BLOQUEADO** por [ADR-003](adr/ADR-003-mutagen-runtime-and-license-boundary.md) / license-runtime decision. Inspect a Skyrim plugin file header under an isolated .NET worker runtime.
 
+## Governance gates (added 2026-09-24)
+
+`.github/workflows/governance.yml` runs two gates that no earlier workflow covered:
+
+- **manifest coverage** — `python3 tools/check_manifest_coverage.py --check` proves every file
+  inside the declared pin perimeter is actually pinned (13 tracked `research/**` files were
+  unpinned when this was introduced, which `sha256sum -c` cannot detect); then re-verifies hashes.
+- **static-analysis ratchet** — `python3 tools/quality_ratchet.py --check` runs `ruff`
+  (`E4,E7,E9,F,B`) and `mypy` over `research/**` and `tools/**` against the debt ledger
+  `tools/quality-baseline.txt`. Recorded debt is grandfathered; new findings fail. A missing
+  analyzer exits 2, never 0.
+
+The Discovery Desk workflow additionally runs `tests/desk-docs-consistency.test.ts`, which fails
+when the desk's mirrored research state disagrees with `docs/research/experiments.md` or
+`docs/status.md` (status identity, row presence, canonical vocabulary, and execution-vs-pending
+framing).
+
+## From POCs to product
+
+No step below is authorized by a POC passing. Promotion requires its own evidence.
+
+1. **Namespace the primitives first.** The POC directories are flat module roots and deliberately
+   reuse module names (`orchestrator.py`, `workspace.py`, `protocol.py`, `errors.py` exist in more
+   than one POC). Verified hazard: a single pytest collection over `research/poc_002` and
+   `research/poc_ipc_001/tests` makes the IPC suite import `poc_002/orchestrator.py`. Therefore
+   **two POCs cannot be loaded in one process today**, and no product may import them as
+   libraries until each is a real package (`__init__.py` + relative imports) with its own
+   collision test. Suites must be invoked one per process (see `pyproject.toml`).
+2. **Then the plan spine, not the model.** `ModPlan` schema → intent normalizer → policy engine →
+   capability router, routed only to operations that already have `PASS` evidence
+   (`INSPECT_HEADER`, `INSPECT_SYNTHETIC_INPUT`). No `EXECUTE_COMMAND`-class primitive, ever.
+3. **Only then a planner.** An LLM behind the normalizer, with a closed vocabulary, and a receipt
+   per operation. Nothing about the model changes the safety properties above; if the spine is
+   absent, the model has nothing safe to call.
+4. **Verification wedge as the first shippable product** (see
+   [viability review](research/2026-09-24-viability-and-improvement-review.md) §6):
+   `POC-VERIFY-001` (real-plugin read-only inventory + strict-format gaps) and `POC-PEX-001`
+   (`.pex` structural validation, privacy redaction gate, semantic equivalence) need neither
+   Mutagen nor Creation Kit and stay clear of the ADR-003 decision.
+5. **ADR-003 stays a gate, not a backlog item.** Authoring beyond read-only requires the
+   runtime/license decision; until then the writer path stays `BLOQUEADO`.
+
 ## Later product milestones
 
 1. NL → validated `ModPlan` → one supported operation → candidate → reopen/assert → HITL.

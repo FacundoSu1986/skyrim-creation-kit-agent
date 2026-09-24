@@ -25,15 +25,44 @@ dev = [
   "mypy>=1.11",
 ]
 
-[tool.pytest.ini_options]
-testpaths = ["research/poc_002"]
+# No [tool.pytest.ini_options] testpaths on purpose, and this is a hazard note,
+# not an omission. The POC directories are flat module roots (ADR-002 launches a
+# worker as `python -I -B <entry>`, they are not an installed package), and they
+# deliberately reuse the same module names: poc_002 and poc_ipc_001 both define
+# `workspace.py`, `orchestrator.py`, `protocol.py` and `errors.py`. Collecting
+# two suites in one process puts both roots on sys.path and lets one suite import
+# the *other* POC's module. Verified with:
+#   python -m pytest -q research/poc_002 research/poc_ipc_001/tests
+#   E   ImportError: cannot import name 'IPCOrchestrator' from 'orchestrator'
+#       (.../research/poc_002/orchestrator.py)
+# It failed loudly only because the symbol names differ; where names coincide it
+# would silently execute the wrong implementation. Invoke one suite per process,
+# the shape the CI workflows use:
+#   python -m unittest discover -s research/poc_002 -p test_suite.py -v
+#   python -m unittest discover -s research/poc_ipc_001/tests -v
+#   python -m unittest discover -s research/poc_003/tests -v   # Windows-only imports
+# Any productization that needs two POCs in one process must first give each POC
+# a real package namespace; see docs/roadmap.md "From POCs to product".
 
 [tool.ruff]
 target-version = "py311"
 line-length = 120
 exclude = ["archive"]
 
+[tool.ruff.lint]
+# Bug-shaped rules only, deliberately narrow. `tools/quality_ratchet.py` gates
+# this exact set; widening it is a ratcheting decision recorded in
+# tools/quality-baseline.txt, not a silent config edit. Cosmetic/format rules
+# are excluded on purpose: reflowing a pinned research baseline changes hashes
+# without changing any evidence.
+select = ["E4", "E7", "E9", "F", "B"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
+# The POC directories have no __init__.py (they are executable research roots,
+# not an installed package), so without namespace resolution mypy aborts with
+# "Duplicate module named orchestrator" and checks nothing at all.
+namespace_packages = true
+explicit_package_bases = true
 exclude = ["^research/poc_002/test_suite.py$"]

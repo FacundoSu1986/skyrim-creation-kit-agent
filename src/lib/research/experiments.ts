@@ -31,11 +31,12 @@ export const experimentRows = [
     hypothesis:
       "The official compiler returns a nonzero exit code on invalid input and a zero exit code on a tiny script that only exists in the workspace, when -i/-o/-f are explicit.",
     method:
-      "If the user machine has CK: invoke PapyrusCompiler.exe with argument arrays, timeout, no shell. Compile a workspace-authored script that does not include leaked Bethesda sources beyond the user's local -i path.",
+      "Executed on a Windows host with a local, hash-pinned PapyrusCompiler.exe under the ADR-004 profile PAPYRUS_COMPILE_DRYRUN_V1: explicit argv, no shell, bounded 64 KiB streams, monotonic deadline, Job Object confinement, pre/post workspace snapshots. Five pre-registered runs (success x2, compile error, long, forced timeout) evaluated against 15 mandatory criteria. Fixtures are own-authored .psc files; no Bethesda source or compiler binary is committed.",
     successCriteria:
-      "Exit codes documented. stdout/stderr captured. Output PEX hash differs from any pre-existing file. Timeout kills the process.",
+      "15/15 mandatory criteria. Measured: 13 PASS / 2 FAIL. Criterion 12 failed (UNEXPECTED_OUTPUT_PRESENT — an interrupted run leaves candidates/<token>.pas); criterion 14 failed (DETERMINISM_MISMATCH — repeated compiles of byte-identical input produced byte-different .pex). The long run exited 0 and produced nothing and was correctly rejected as EXPECTED_OUTPUT_MISSING.",
     status: "NO VERIFICADO",
-    blockedBy: "Compiler binary not present here.",
+    blockedBy:
+      "Executed twice (2026-09-06, re-executed 2026-09-11) and NOT passed: two mandatory criteria failed. Not a missing-environment blocker. Determinism is unrecoverable with this compiler as invoked (PEX header timestamp plus unstable string-table ordering); the compiler also writes its host account and machine name into the .pex string table. Research harness exists in research/poc_003/ (105 hermetic tests, Windows-gated); no production adapter exists.",
   },
   {
     code: "POC-004",
@@ -48,6 +49,32 @@ export const experimentRows = [
       "Marker present. Nonzero without marker. No write to originals.",
     status: "NO VERIFICADO",
     blockedBy: "Windows + xEdit not available here.",
+  },
+  {
+    code: "POC-IPC-001",
+    title: "Isolated worker IPC protocol and transactional boundaries",
+    hypothesis:
+      "A trusted orchestrator can drive an out-of-process worker over a bounded JSON stdio protocol with full pre-spawn validation, a single monotonic deadline, capped streams, fail-closed cleanup, and a receipt that reports a verdict computed by the trusted side.",
+    method:
+      "Implemented under ADR-002. One trusted read-only operation (INSPECT_SYNTHETIC_INPUT) against a synthetic fixture. Bounded stdin writer plus stdout/stderr pumps (never communicate()), platform-honest cleanup (POSIX process group, Windows direct child), closed error taxonomy, no-overwrite receipts, path containment, and adversarial helper workers that hang, spam, close stdin, emit malformed JSON, mis-correlate or spawn descendants.",
+    successCriteria:
+      "181 hermetic tests (7 platform-gated skips), including failure injection: every defect must produce a deterministic taxonomy code and no false PASS. Achieved. It demonstrates the protocol and process-isolation contract only — NOT OS-level sandboxing (OS_SANDBOX: NO VERIFICADO).",
+    status: "PASS",
+    blockedBy:
+      "Validated research baseline (research/poc_ipc_001/). Not a production authoring backend and not a sandbox.",
+  },
+  {
+    code: "POC-MUTAGEN-001",
+    title: "Mutagen read-only plugin inspector in an isolated .NET worker",
+    hypothesis:
+      "Mutagen can read a Skyrim plugin header and record inventory headlessly, without a game install and without Creation Kit.",
+    method:
+      "Not started by decision: it requires an accepted runtime and license boundary (ADR-003, PROPOSED) and a .NET worker launch profile that ADR-002 does not yet define.",
+    successCriteria:
+      "Would require a read-only, hash-pinned, workspace-contained .NET worker plus the ADR-003 license decision (GPL-3.0-only; execute vs link vs distribute).",
+    status: "BLOQUEADO",
+    blockedBy:
+      "ADR-003 license/runtime decision (PROPOSED, LEGAL_REVIEW_REQUIRED). Mutagen is not vendored and no C#/.NET/NuGet dependency exists in this repository.",
   },
   {
     code: "EXP-CK-CLI",

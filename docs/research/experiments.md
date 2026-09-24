@@ -57,6 +57,45 @@ See the identifier rule below.
 
 Use a user-installed xEdit copy, an allowlisted/hash-pinned reporting script and an explicit completion marker. Missing marker is failure. Originals remain untouched.
 
+## POC-IPC-001 — Isolated worker protocol and transactional boundaries
+
+**Status:** **PASS**
+
+**Hypothesis:** a trusted orchestrator can drive an out-of-process worker over a bounded JSON
+stdio protocol and never report success on inference: verdict computed by the trusted side as a
+conjunction of invariants (exit code, schema validation, assertions, deadline, stream caps,
+cleanup), with fail-closed behavior on every defect class.
+
+**Method:** implement the ADR-002 lifecycle literally for one trusted read-only operation
+(`INSPECT_SYNTHETIC_INPUT`) against a synthetic fixture: full pre-spawn validation (invalid
+requests spawn nothing), a single monotonic session deadline, bounded deadline-aware stdin writer
+and stdout/stderr pumps (never `communicate()`), platform-honest cleanup, path containment,
+no-overwrite receipts. Adversarial helper workers hang, spam, close stdin, emit malformed JSON,
+mis-correlate, spawn descendants, or violate their receipt shape.
+
+**Success:** every defect yields a deterministic taxonomy code and no false `PASS`. Achieved:
+181 hermetic tests (7 platform-gated skips) in `research/poc_ipc_001/`.
+
+**What it does not prove:** OS-level confinement. `OS_SANDBOX` remains `NO VERIFICADO`; worker
+code is trusted code running with host privileges (ADR-002 D16). This is an intentionally
+**migrated** index entry: the subprocess IPC work was carried under a distinct `POC-IPC`
+identifier rather than as canonical POC-003, and is recorded here so the index is complete.
+
+## POC-MUTAGEN-001 — Mutagen read-only inspector
+
+**Status:** `BLOQUEADO` by [ADR-003](../adr/ADR-003-mutagen-runtime-and-license-boundary.md)
+(PROPOSED) license/runtime decision.
+
+**Hypothesis:** Mutagen can read a plugin header and inventory records headlessly, with no game
+install and no Creation Kit.
+
+**Method (not started):** isolated .NET worker under a launch profile that ADR-002 does not yet
+define, read-only, workspace-contained, hash-pinned.
+
+**Blocked by:** the ADR-003 runtime/license decision (GPL-3.0-only; execute vs link vs
+distribute). No C#/.NET/NuGet dependency exists in this repository and none may be added while
+this entry is `BLOQUEADO`.
+
 ## EXP-CK-CLI — enumerate actual Creation Kit flags
 
 **Status:** `NO VERIFICADO`
